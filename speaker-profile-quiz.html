@@ -156,6 +156,10 @@
   .postq-text label span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-dim);}
   .postq-text textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;resize:vertical;box-sizing:border-box;}
   .postq-text textarea:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
+  .phonegroup{display:flex;gap:10px;margin-top:12px;}
+  .phonegroup select{flex:0 0 auto;max-width:48%;padding:13px 12px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;cursor:pointer;}
+  .phonegroup input{flex:1;min-width:0;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
+  .phonegroup select:focus-visible,.phonegroup input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
   .hidden{display:none !important;}
   @media (prefers-reduced-motion: reduce){*{transition:none !important;}}
 </style>
@@ -229,8 +233,11 @@
       </div>
       <div class="leadrow">
         <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
-        <input id="leadPhone" type="tel" placeholder="Phone — country code first (+34…)" autocomplete="tel" />
         <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
+      </div>
+      <div class="phonegroup">
+        <select id="leadCC" aria-label="Country dialling code"><option value="34" selected>Spain (+34)</option><option value="54">Argentina (+54)</option><option value="61">Australia (+61)</option><option value="43">Austria (+43)</option><option value="32">Belgium (+32)</option><option value="55">Brazil (+55)</option><option value="1">Canada (+1)</option><option value="56">Chile (+56)</option><option value="86">China (+86)</option><option value="57">Colombia (+57)</option><option value="420">Czechia (+420)</option><option value="45">Denmark (+45)</option><option value="20">Egypt (+20)</option><option value="358">Finland (+358)</option><option value="33">France (+33)</option><option value="49">Germany (+49)</option><option value="30">Greece (+30)</option><option value="852">Hong Kong (+852)</option><option value="36">Hungary (+36)</option><option value="91">India (+91)</option><option value="62">Indonesia (+62)</option><option value="353">Ireland (+353)</option><option value="972">Israel (+972)</option><option value="39">Italy (+39)</option><option value="81">Japan (+81)</option><option value="352">Luxembourg (+352)</option><option value="60">Malaysia (+60)</option><option value="52">Mexico (+52)</option><option value="212">Morocco (+212)</option><option value="31">Netherlands (+31)</option><option value="64">New Zealand (+64)</option><option value="234">Nigeria (+234)</option><option value="47">Norway (+47)</option><option value="51">Peru (+51)</option><option value="63">Philippines (+63)</option><option value="48">Poland (+48)</option><option value="351">Portugal (+351)</option><option value="974">Qatar (+974)</option><option value="40">Romania (+40)</option><option value="966">Saudi Arabia (+966)</option><option value="65">Singapore (+65)</option><option value="27">South Africa (+27)</option><option value="82">South Korea (+82)</option><option value="46">Sweden (+46)</option><option value="41">Switzerland (+41)</option><option value="886">Taiwan (+886)</option><option value="66">Thailand (+66)</option><option value="90">Turkey (+90)</option><option value="380">Ukraine (+380)</option><option value="971">United Arab Emirates (+971)</option><option value="44">United Kingdom (+44)</option><option value="1">United States (+1)</option><option value="84">Vietnam (+84)</option></select>
+        <input id="leadPhone" type="tel" inputmode="tel" placeholder="Phone number" autocomplete="tel-national" />
       </div>
       <label class="leadconsent"><input type="checkbox" id="leadConsent" /> <span>I'm happy to be contacted about my results. You can unsubscribe at any time, and your details are only used to send your results and updates about the programme.</span></label>
       <button class="btn" id="leadSend">Reveal my result →</button>
@@ -968,12 +975,14 @@ function resetExtras(){
 $("leadSend").onclick=function(){
   const name=$("leadName").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
   let email=$("leadEmail").value.trim().toLowerCase();
-  let phone=$("leadPhone").value.trim().replace(/[\s().\-]/g,"");
-  if(phone.slice(0,2)==="00") phone="+"+phone.slice(2);
+  let raw=$("leadPhone").value.trim().replace(/[\s().\-]/g,"");
+  let phone;
+  if(raw.charAt(0)==="+"){ phone=raw; }
+  else { phone="+"+($("leadCC").value||"")+raw.replace(/\D/g,"").replace(/^0+/,""); }
   const fail=function(t){ msg.style.color="var(--rose)"; msg.textContent=t; };
   if(!name){ fail("Please add your name."); return; }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ fail("That email address doesn't look right."); return; }
-  if(!/^\+[1-9]\d{7,14}$/.test(phone)){ fail("Please enter your phone with country code, e.g. +34 600 123 456."); return; }
+  if(!/^\+[1-9]\d{7,14}$/.test(phone)){ fail("Please enter a valid phone number."); return; }
   if(!consent){ fail("Please tick the box so we can send your results."); return; }
   /* valid — reveal the result, then save in the background */
   $("gate").classList.add("hidden");
@@ -1007,5 +1016,3 @@ document.addEventListener("keydown",e=>{
 </script>
 </body>
 </html>
-
-
