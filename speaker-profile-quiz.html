@@ -128,28 +128,28 @@
   .qtrans{margin:13px 0 0;font-size:clamp(15px,2.6vw,18px);color:var(--on-dark-soft);font-style:italic;line-height:1.4;padding-left:15px;border-left:2px solid var(--line);}
   .ravatar{position:relative;z-index:1;margin:0 auto 4px;}
   .ravatar svg{width:128px;height:128px;display:block;margin:0 auto;}
-  .lead{background:var(--paper);color:var(--on-paper);border-radius:18px;padding:clamp(22px,4vw,32px);text-align:left;margin:26px 0;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);}
-  .lead .kicker{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 8px;}
+  .capture{background:var(--paper);color:var(--on-paper);border-radius:18px;padding:clamp(22px,4vw,32px);text-align:left;margin:26px 0;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);}
+  .capture .kicker{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 8px;}
   .leadcopy{font-size:15px;color:var(--on-paper-soft);margin:0 0 16px;}
   .leadrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
   .leadrow input{flex:1;min-width:160px;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
   .leadrow input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
   .leadconsent{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--on-paper-soft);margin-bottom:16px;cursor:pointer;line-height:1.45;}
   .leadconsent input{margin-top:3px;flex:none;}
-  .lead .btn{border:none;cursor:pointer;}
+  .capture .btn{border:none;cursor:pointer;}
   .leadmsg{font-family:'Space Mono',monospace;font-size:12.5px;min-height:16px;margin:12px 0 0;}
   .warmup{margin:8px 0 30px;display:flex;flex-direction:column;gap:22px;max-width:470px;}
-  .rate label{display:block;font-size:14px;color:var(--on-dark-soft);margin-bottom:10px;line-height:1.4;}
+  .rate label{display:block;font-size:14px;color:var(--on-dark);margin-bottom:10px;line-height:1.4;}
   .rate label span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-dim);}
   .scale{display:flex;gap:5px;}
   .scale button{flex:1;min-width:0;padding:9px 0;border:1px solid var(--line);background:rgba(244,239,228,.04);color:var(--on-dark-soft);border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
   .scale button:hover{border-color:var(--gold);color:var(--on-dark);}
   .scale button.on{background:var(--gold);border-color:var(--gold);color:#241606;font-weight:700;}
-  .lead .rate label{color:var(--on-paper-soft);}
-  .lead .rate label span{color:var(--gold-dim);}
-  .lead .scale button{background:#fff;border-color:#D9CFBF;color:var(--on-paper-soft);}
-  .lead .scale button:hover{border-color:var(--gold);color:var(--on-paper);}
-  .lead .scale button.on{background:var(--gold);border-color:var(--gold);color:#241606;}
+  .capture .rate label{color:var(--on-paper-soft);}
+  .capture .rate label span{color:var(--gold-dim);}
+  .capture .scale button{background:#fff;border-color:#D9CFBF;color:var(--on-paper-soft);}
+  .capture .scale button:hover{border-color:var(--gold);color:var(--on-paper);}
+  .capture .scale button.on{background:var(--gold);border-color:var(--gold);color:#241606;}
   .postrate{margin-bottom:16px;}
   .postq-text{margin-bottom:18px;}
   .postq-text label{display:block;font-size:14px;color:var(--on-paper-soft);margin-bottom:8px;}
@@ -220,7 +220,23 @@
 
   <!-- RESULT -->
   <section id="result" class="hidden">
-    <div class="reveal">
+    <div class="capture" id="gate">
+      <p class="kicker">Your result is ready</p>
+      <p class="leadcopy">Enter your details to reveal your speaker profile. We'll also email it to you with a tailored next step.</p>
+      <div class="postq-text">
+        <label>What did you most want to improve about your speaking? <span>optional</span></label>
+        <textarea id="improveText" rows="2" placeholder="A sentence is plenty."></textarea>
+      </div>
+      <div class="leadrow">
+        <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
+        <input id="leadPhone" type="tel" placeholder="Your phone" autocomplete="tel" />
+        <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
+      </div>
+      <label class="leadconsent"><input type="checkbox" id="leadConsent" /> <span>I'm happy to be contacted about my results. You can unsubscribe at any time, and your details are only used to send your results and updates about the programme.</span></label>
+      <button class="btn" id="leadSend">Reveal my result →</button>
+      <p class="leadmsg" id="leadMsg"></p>
+    </div>
+    <div class="reveal hidden" id="revealBox">
       <div class="spot">
         <div id="rAvatar" class="ravatar"></div>
         <div class="spot-label">Your strongest profile</div>
@@ -264,26 +280,6 @@
 
       <div class="science">
         <b>How this is scored.</b> Four dimensions place you in the landscape — Apprehension (McCroskey's Personal Report of Public Speaking Anxiety, 1970), Presence and Focus (Schlenker &amp; Leary's self-presentation theory, 1982, and Clark &amp; Wells' cognitive model, 1995, where self-focused attention and "safety behaviours" keep anxiety alive), and Preparation (the same safety-behaviour research plus the conscientiousness trait). On top of that, direct questions score each profile individually, so your result is a ranked match rather than a single guess. The fix throughout: reappraise the nerves as excitement rather than fighting them (Brooks, 2014).
-      </div>
-
-      <div class="lead" id="leadBox">
-        <p class="kicker">Before you go</p>
-        <p class="leadcopy">Two quick questions, then pop in your details and we'll send your full results and a tailored next step.</p>
-        <div class="rate postrate">
-          <label>How accurate does this feel? <span>1 = not me · 10 = spot on · optional</span></label>
-          <div class="scale" id="scaleAccuracy" data-field="accuracy"></div>
-        </div>
-        <div class="postq-text">
-          <label>What did you most want to improve about your speaking? <span>optional</span></label>
-          <textarea id="improveText" rows="3" placeholder="A sentence is plenty."></textarea>
-        </div>
-        <div class="leadrow">
-          <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
-          <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
-        </div>
-        <label class="leadconsent"><input type="checkbox" id="leadConsent" /> <span>I'm happy to be contacted about my results. You can unsubscribe at any time, and your details are only used to send your results and updates about the programme.</span></label>
-        <button class="btn" id="leadSend">Send me my results</button>
-        <p class="leadmsg" id="leadMsg"></p>
       </div>
 
       <div class="actions">
@@ -892,6 +888,7 @@ function finish(){
   const {dim, scored} = compute();
   const primary=scored[0].p, secondary=scored[1].p;
   show("result");
+  $("gate").classList.remove("hidden"); $("revealBox").classList.add("hidden"); $("leadSend").disabled=false; if($("leadMsg")) $("leadMsg").textContent="";
 
   $("rAvatar").innerHTML=charFor(primary.p?primary.p.id:primary.id); $("rName").textContent=primary.name;
   $("rTag").textContent=primary.tag;
@@ -968,34 +965,32 @@ function resetExtras(){
 }
 
 $("leadSend").onclick=function(){
-  const name=$("leadName").value.trim(), email=$("leadEmail").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
-  if(!name||!email){ msg.style.color="var(--rose)"; msg.textContent="Please add your name and email."; return; }
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg.style.color="var(--rose)"; msg.textContent="That email address doesn't look right."; return; }
-  if(!consent){ msg.style.color="var(--rose)"; msg.textContent="Please tick the box so we can email you."; return; }
+  const name=$("leadName").value.trim(), phone=$("leadPhone").value.trim(), email=$("leadEmail").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
+  const fail=function(t){ msg.style.color="var(--rose)"; msg.textContent=t; };
+  if(!name){ fail("Please add your name."); return; }
+  if(!phone || phone.replace(/[^0-9]/g,"").length<6){ fail("Please add a valid phone number."); return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ fail("That email address doesn't look right."); return; }
+  if(!consent){ fail("Please tick the box so we can send your results."); return; }
+  /* valid — reveal the result, then save in the background */
+  $("gate").classList.add("hidden");
+  $("revealBox").classList.remove("hidden");
+  window.scrollTo(0,0);
   const r=window._result||{};
   const payload={
-    name:name, email:email, consent:true,
+    name:name, email:email, phone:phone, consent:true,
     confidence:RATINGS.confidence, worry:RATINGS.worry, accuracy:RATINGS.accuracy,
     improve_text: (($("improveText")&&$("improveText").value.trim()) || null),
     primary_profile: r.primary||null, secondary_profile: r.secondary||null,
     scores: r.dim ? ("A"+r.dim.A+" P"+r.dim.P+" F"+r.dim.F+" C"+r.dim.C) : null,
     lang: (typeof LANG!=="undefined" ? LANG : "en")
   };
-  msg.style.color="var(--on-paper-soft)"; msg.textContent="Sending\u2026";
   fetch(SUPABASE_URL+"/rest/v1/responses",{
     method:"POST",
     headers:{ "apikey":SUPABASE_ANON, "Authorization":"Bearer "+SUPABASE_ANON, "Content-Type":"application/json", "Prefer":"return=minimal" },
     body:JSON.stringify(payload)
-  }).then(function(res){
-    if(!res.ok){ return res.text().then(function(t){ throw new Error(res.status+" "+t); }); }
-    msg.style.color="var(--gold-dim)"; msg.textContent="Thanks \u2014 your results are saved and on their way.";
-    $("leadSend").disabled=true; $("leadName").disabled=true; $("leadEmail").disabled=true;
-  }).catch(function(err){
-    msg.style.color="var(--rose)"; msg.textContent="Something went wrong \u2014 please try again in a moment.";
-    console.error("Supabase insert failed:", err);
-  });
+  }).then(function(res){ if(!res.ok){ return res.text().then(function(t){ throw new Error(res.status+" "+t); }); } })
+    .catch(function(err){ console.error("Supabase insert failed:", err); });
 };
-
 $("retake").onclick=function(){ idx=0; answers.fill(null); resetExtras(); show("intro"); };
 
 document.addEventListener("keydown",e=>{
