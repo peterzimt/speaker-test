@@ -229,7 +229,7 @@
       </div>
       <div class="leadrow">
         <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
-        <input id="leadPhone" type="tel" placeholder="Your phone" autocomplete="tel" />
+        <input id="leadPhone" type="tel" placeholder="Phone — country code first (+34…)" autocomplete="tel" />
         <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
       </div>
       <label class="leadconsent"><input type="checkbox" id="leadConsent" /> <span>I'm happy to be contacted about my results. You can unsubscribe at any time, and your details are only used to send your results and updates about the programme.</span></label>
@@ -713,6 +713,7 @@ const CENTRE = [28,50,75,50];
 let idx = 0;
 let LANG = 'en';
 const answers = new Array(Q.length).fill(null);
+(function(){ const c={}; Q.forEach(function(q){ const key=q.type==="dim"?("D"+q.d):("T"+q.p); c[key]=(c[key]||0)+1; q._id = q.type==="dim" ? (q.d+c[key]) : (q.p+"_"+c[key]); }); })();
 const LIKERT = ["Strongly disagree","Disagree","Neutral","Agree","Strongly agree"];
 const $ = id => document.getElementById(id);
 const TOTAL = Q.length;
@@ -965,23 +966,28 @@ function resetExtras(){
 }
 
 $("leadSend").onclick=function(){
-  const name=$("leadName").value.trim(), phone=$("leadPhone").value.trim(), email=$("leadEmail").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
+  const name=$("leadName").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
+  let email=$("leadEmail").value.trim().toLowerCase();
+  let phone=$("leadPhone").value.trim().replace(/[\s().\-]/g,"");
+  if(phone.slice(0,2)==="00") phone="+"+phone.slice(2);
   const fail=function(t){ msg.style.color="var(--rose)"; msg.textContent=t; };
   if(!name){ fail("Please add your name."); return; }
-  if(!phone || phone.replace(/[^0-9]/g,"").length<6){ fail("Please add a valid phone number."); return; }
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ fail("That email address doesn't look right."); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ fail("That email address doesn't look right."); return; }
+  if(!/^\+[1-9]\d{7,14}$/.test(phone)){ fail("Please enter your phone with country code, e.g. +34 600 123 456."); return; }
   if(!consent){ fail("Please tick the box so we can send your results."); return; }
   /* valid — reveal the result, then save in the background */
   $("gate").classList.add("hidden");
   $("revealBox").classList.remove("hidden");
   window.scrollTo(0,0);
   const r=window._result||{};
+  const ans={}; for(let i=0;i<Q.length;i++){ ans[Q[i]._id]=answers[i]; }
   const payload={
     name:name, email:email, phone:phone, consent:true,
     confidence:RATINGS.confidence, worry:RATINGS.worry, accuracy:RATINGS.accuracy,
     improve_text: (($("improveText")&&$("improveText").value.trim()) || null),
     primary_profile: r.primary||null, secondary_profile: r.secondary||null,
     scores: r.dim ? ("A"+r.dim.A+" P"+r.dim.P+" F"+r.dim.F+" C"+r.dim.C) : null,
+    answers: ans,
     lang: (typeof LANG!=="undefined" ? LANG : "en")
   };
   fetch(SUPABASE_URL+"/rest/v1/responses",{
@@ -1001,3 +1007,5 @@ document.addEventListener("keydown",e=>{
 </script>
 </body>
 </html>
+
+
