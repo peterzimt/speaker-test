@@ -138,6 +138,24 @@
   .leadconsent input{margin-top:3px;flex:none;}
   .lead .btn{border:none;cursor:pointer;}
   .leadmsg{font-family:'Space Mono',monospace;font-size:12.5px;min-height:16px;margin:12px 0 0;}
+  .warmup{margin:8px 0 30px;display:flex;flex-direction:column;gap:22px;max-width:470px;}
+  .rate label{display:block;font-size:14px;color:var(--on-dark-soft);margin-bottom:10px;line-height:1.4;}
+  .rate label span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-dim);}
+  .scale{display:flex;gap:5px;}
+  .scale button{flex:1;min-width:0;padding:9px 0;border:1px solid var(--line);background:rgba(244,239,228,.04);color:var(--on-dark-soft);border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
+  .scale button:hover{border-color:var(--gold);color:var(--on-dark);}
+  .scale button.on{background:var(--gold);border-color:var(--gold);color:#241606;font-weight:700;}
+  .lead .rate label{color:var(--on-paper-soft);}
+  .lead .rate label span{color:var(--gold-dim);}
+  .lead .scale button{background:#fff;border-color:#D9CFBF;color:var(--on-paper-soft);}
+  .lead .scale button:hover{border-color:var(--gold);color:var(--on-paper);}
+  .lead .scale button.on{background:var(--gold);border-color:var(--gold);color:#241606;}
+  .postrate{margin-bottom:16px;}
+  .postq-text{margin-bottom:18px;}
+  .postq-text label{display:block;font-size:14px;color:var(--on-paper-soft);margin-bottom:8px;}
+  .postq-text label span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-dim);}
+  .postq-text textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;resize:vertical;box-sizing:border-box;}
+  .postq-text textarea:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
   .hidden{display:none !important;}
   @media (prefers-reduced-motion: reduce){*{transition:none !important;}}
 </style>
@@ -166,6 +184,16 @@
         <option value="es">Español</option>
         <option value="other">Another language — continue in English</option>
       </select>
+    </div>
+    <div class="warmup">
+      <div class="rate">
+        <label>How would you rate your public speaking right now? <span>1 = dread it · 10 = love it · optional</span></label>
+        <div class="scale" id="scaleConfidence" data-field="confidence"></div>
+      </div>
+      <div class="rate">
+        <label>How much does public speaking worry you? <span>1 = not at all · 10 = a lot · optional</span></label>
+        <div class="scale" id="scaleWorry" data-field="worry"></div>
+      </div>
     </div>
     <button class="btn" id="start">Step into the light →</button>
   </section>
@@ -239,8 +267,16 @@
       </div>
 
       <div class="lead" id="leadBox">
-        <p class="kicker">Get your results by email</p>
-        <p class="leadcopy">Add your details and we'll send your profile and a tailored next step — and let you know when the full programme opens.</p>
+        <p class="kicker">Before you go</p>
+        <p class="leadcopy">Two quick questions, then pop in your details and we'll send your full results and a tailored next step.</p>
+        <div class="rate postrate">
+          <label>How accurate does this feel? <span>1 = not me · 10 = spot on · optional</span></label>
+          <div class="scale" id="scaleAccuracy" data-field="accuracy"></div>
+        </div>
+        <div class="postq-text">
+          <label>What did you most want to improve about your speaking? <span>optional</span></label>
+          <textarea id="improveText" rows="3" placeholder="A sentence is plenty."></textarea>
+        </div>
         <div class="leadrow">
           <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
           <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
@@ -907,23 +943,60 @@ $("share").onclick=()=>{
   const done=()=>{ $("toast").textContent="Copied to clipboard ✓"; setTimeout(()=>$("toast").textContent="",2600); };
   if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(done); } else { done(); }
 };
-/* ---- email capture (replace LEAD_ENDPOINT with your own form endpoint) ---- */
-const LEAD_ENDPOINT = "https://formspree.io/f/REPLACE_WITH_YOUR_FORM_ID";
-$("leadSend").onclick=()=>{
+/* ---- ratings + Supabase capture ---- */
+const SUPABASE_URL = "https://dmpghqztbluxarprzeae.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcGdocXp0Ymx1eGFycHJ6ZWFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTQ1OTEsImV4cCI6MjA5ODQ3MDU5MX0.8UhaPHnIzGraJA_CwY22EisVsFdF82y6J5Uh1l1lP2Q";
+const RATINGS = {confidence:null, worry:null, accuracy:null};
+
+function buildScale(elId){
+  const el=$(elId); if(!el) return;
+  const field=el.getAttribute("data-field");
+  el.innerHTML="";
+  for(let i=1;i<=10;i++){
+    const b=document.createElement("button");
+    b.type="button"; b.textContent=i;
+    b.onclick=function(){ RATINGS[field]=i; const kids=el.children; for(let k=0;k<kids.length;k++) kids[k].classList.remove("on"); b.classList.add("on"); };
+    el.appendChild(b);
+  }
+}
+buildScale("scaleConfidence"); buildScale("scaleWorry"); buildScale("scaleAccuracy");
+
+function resetExtras(){
+  RATINGS.confidence=RATINGS.worry=RATINGS.accuracy=null;
+  const ons=document.querySelectorAll(".scale button.on"); for(let i=0;i<ons.length;i++) ons[i].classList.remove("on");
+  const it=$("improveText"); if(it) it.value="";
+}
+
+$("leadSend").onclick=function(){
   const name=$("leadName").value.trim(), email=$("leadEmail").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
   if(!name||!email){ msg.style.color="var(--rose)"; msg.textContent="Please add your name and email."; return; }
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg.style.color="var(--rose)"; msg.textContent="That email address doesn't look right."; return; }
   if(!consent){ msg.style.color="var(--rose)"; msg.textContent="Please tick the box so we can email you."; return; }
-  const r=window._result||{}, fd=new FormData();
-  fd.append("name",name); fd.append("email",email);
-  fd.append("primary_profile", r.primary||""); fd.append("secondary_profile", r.secondary||"");
-  if(r.dim) fd.append("scores", "Apprehension "+r.dim.A+" / Presence "+r.dim.P+" / Focus "+r.dim.F+" / Preparation "+r.dim.C);
-  fd.append("_subject","New Speaker Profile result");
+  const r=window._result||{};
+  const payload={
+    name:name, email:email, consent:true,
+    confidence:RATINGS.confidence, worry:RATINGS.worry, accuracy:RATINGS.accuracy,
+    improve_text: (($("improveText")&&$("improveText").value.trim()) || null),
+    primary_profile: r.primary||null, secondary_profile: r.secondary||null,
+    scores: r.dim ? ("A"+r.dim.A+" P"+r.dim.P+" F"+r.dim.F+" C"+r.dim.C) : null,
+    lang: (typeof LANG!=="undefined" ? LANG : "en")
+  };
   msg.style.color="var(--on-paper-soft)"; msg.textContent="Sending\u2026";
-  fetch(LEAD_ENDPOINT,{method:"POST",body:fd,headers:{Accept:"application/json"}})
-    .then(res=>{ if(!res.ok) throw new Error(); msg.style.color="var(--gold-dim)"; msg.textContent="Thanks \u2014 your results are on their way."; $("leadSend").disabled=true; $("leadName").disabled=true; $("leadEmail").disabled=true; })
-    .catch(()=>{ msg.style.color="var(--rose)"; msg.textContent="Something went wrong \u2014 please try again in a moment."; });
+  fetch(SUPABASE_URL+"/rest/v1/responses",{
+    method:"POST",
+    headers:{ "apikey":SUPABASE_ANON, "Authorization":"Bearer "+SUPABASE_ANON, "Content-Type":"application/json", "Prefer":"return=minimal" },
+    body:JSON.stringify(payload)
+  }).then(function(res){
+    if(!res.ok){ return res.text().then(function(t){ throw new Error(res.status+" "+t); }); }
+    msg.style.color="var(--gold-dim)"; msg.textContent="Thanks \u2014 your results are saved and on their way.";
+    $("leadSend").disabled=true; $("leadName").disabled=true; $("leadEmail").disabled=true;
+  }).catch(function(err){
+    msg.style.color="var(--rose)"; msg.textContent="Something went wrong \u2014 please try again in a moment.";
+    console.error("Supabase insert failed:", err);
+  });
 };
+
+$("retake").onclick=function(){ idx=0; answers.fill(null); resetExtras(); show("intro"); };
 
 document.addEventListener("keydown",e=>{
   if($("quiz").classList.contains("hidden"))return;
