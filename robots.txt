@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://aristotl.es/sitemap.xml
