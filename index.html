@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Speaker Profiles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1426; --house:#150F1F;
+    --gold:#E9B85C; --gold-bright:#F2D08A;
+    --paper:#F4EFE4; --paper-2:#ECE4D4; --on-paper:#221A2B; --on-paper-soft:#5B5066;
+    --on-dark:#EDE6F2; --on-dark-soft:#A99FB5;
+    --line:rgba(233,184,92,.20);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--on-dark);line-height:1.55;
+    background:radial-gradient(120% 70% at 50% -10%, rgba(233,184,92,.08), transparent 55%),linear-gradient(180deg,var(--ink),var(--house));
+    background-attachment:fixed;min-height:100vh;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 clamp(20px,5vw,40px);}
+  a{color:inherit;}
+
+  /* hero */
+  .hero{text-align:center;padding:clamp(56px,9vw,110px) 0 clamp(30px,5vw,50px);}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin:0 0 20px;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(40px,8vw,76px);line-height:1.02;letter-spacing:-.02em;margin:0 0 22px;}
+  h1 em{font-style:italic;color:var(--gold-bright);}
+  .sub{font-size:clamp(16px,2.4vw,19px);color:var(--on-dark-soft);max-width:60ch;margin:0 auto 34px;}
+  .btn{display:inline-block;background:var(--gold);color:#241606;font-weight:600;font-size:16px;padding:15px 34px;border-radius:999px;text-decoration:none;transition:transform .15s,box-shadow .2s,background .2s;}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 34px -10px rgba(233,184,92,.55);background:var(--gold-bright);}
+
+  /* group nav */
+  .groupnav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:40px 0 10px;}
+  .groupnav a{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.04em;text-decoration:none;padding:8px 14px;border-radius:999px;border:1px solid var(--gc,var(--line));color:var(--gc,var(--on-dark-soft));transition:background .15s;}
+  .groupnav a:hover{background:color-mix(in srgb, var(--gc) 14%, transparent);}
+
+  /* group section */
+  .group{padding:clamp(36px,6vw,64px) 0 10px;}
+  .group-head{border-top:1px solid var(--gline);padding-top:30px;margin-bottom:6px;}
+  .group-kicker{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gc);margin:0 0 8px;}
+  .group-name{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(28px,5vw,44px);margin:0 0 12px;color:var(--on-dark);}
+  .group-blurb{color:var(--on-dark-soft);max-width:62ch;margin:0 0 28px;font-size:16px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;}
+  .card{background:rgba(244,239,228,.035);border:1px solid var(--gline);border-radius:18px;padding:22px 20px 24px;text-align:center;cursor:pointer;transition:transform .15s,background .2s,border-color .2s;}
+  .card:hover{transform:translateY(-4px);background:color-mix(in srgb, var(--gc) 10%, rgba(244,239,228,.03));border-color:var(--gc);}
+  .card:focus-visible{outline:2px solid var(--gc);outline-offset:3px;}
+  .card svg{width:118px;height:118px;display:block;margin:0 auto 14px;}
+  .card .pname{font-family:'Fraunces',serif;font-weight:600;font-size:21px;line-height:1.1;margin:0 0 6px;}
+  .card .pone{font-size:13.5px;color:var(--on-dark-soft);line-height:1.4;margin:0;}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(10,7,16,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:24px;z-index:50;}
+  .ov.open{display:flex;}
+  .modal{background:var(--paper);color:var(--on-paper);max-width:560px;width:100%;border-radius:22px;padding:clamp(26px,4vw,40px);max-height:88vh;overflow:auto;position:relative;box-shadow:0 40px 90px -30px #000;}
+  .modal .close{position:absolute;top:16px;right:18px;background:none;border:none;font-size:26px;line-height:1;color:var(--on-paper-soft);cursor:pointer;}
+  .modal .close:hover{color:var(--on-paper);}
+  .mhead{display:flex;gap:18px;align-items:center;margin-bottom:6px;}
+  .mhead svg{width:96px;height:96px;flex:none;}
+  .mchip{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:999px;color:#fff;margin-bottom:8px;}
+  .mname{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(26px,5vw,34px);line-height:1.05;margin:0;}
+  .mtag{font-style:italic;font-family:'Fraunces',serif;color:var(--on-paper-soft);font-size:17px;margin:4px 0 0;}
+  .modal h4{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--on-paper-soft);margin:22px 0 6px;}
+  .modal p{margin:0;font-size:15.5px;}
+  .mcue{background:var(--paper-2);border-left:3px solid var(--mc);padding:14px 18px;border-radius:0 10px 10px 0;font-size:15px;}
+  .mtravels{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .mtravels span{font-family:'Space Mono',monospace;font-size:12px;background:var(--paper-2);color:var(--on-paper-soft);padding:5px 11px;border-radius:999px;}
+
+  footer{text-align:center;padding:60px 0 70px;color:var(--on-dark-soft);}
+  footer .btn{margin-bottom:24px;}
+  .disc{font-size:12px;opacity:.7;max-width:60ch;margin:0 auto;line-height:1.5;}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;scroll-behavior:auto;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">The Speaker Profiles</p>
+    <h1>Every speaker has a <em>shape</em> under pressure.</h1>
+    <p class="sub">Twenty-four ways a talk goes sideways, sorted into six families. Find the one you recognise — or take the test and let it find you. Each is a pattern, not a verdict, and every pattern is coachable in a specific direction.</p>
+    <a class="btn" href="./speaker-profile-quiz.html">Take the free test →</a>
+    <nav class="groupnav" id="groupnav"></nav>
+  </header>
+
+  <main id="groups"></main>
+
+  <footer>
+    <a class="btn" href="./speaker-profile-quiz.html">Find your profile →</a>
+    <p class="disc">A coaching and self-awareness tool, not a clinical assessment. Where fear of speaking is part of a wider, persistent anxiety in social situations, a qualified mental-health professional is the right person to see.</p>
+  </footer>
+</div>
+
+<!-- modal -->
+<div class="ov" id="ov">
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
+    <button class="close" id="close" aria-label="Close">×</button>
+    <div class="mhead"><div id="mAvatar"></div>
+      <div><span class="mchip" id="mChip"></span>
+        <h3 class="mname" id="mName"></h3>
+        <p class="mtag" id="mTag"></p>
+      </div>
+    </div>
+    <h4>The drive</h4><p id="mDrive"></p>
+    <h4>How it shows up</h4><p id="mPortrait"></p>
+    <h4>Your next rep</h4><div class="mcue" id="mCue"></div>
+    <h4>Often travels with</h4><div class="mtravels" id="mTravels"></div>
+  </div>
+</div>
+
+<script>
+/* ---------- character generator ---------- */
+let _uid=0;
+function shade(hex,p){const n=parseInt(hex.slice(1),16);let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const f=t=>Math.max(0,Math.min(255,Math.round(t+p/100*255)));return '#'+((f(r)<<16)|(f(g)<<8)|f(b)).toString(16).padStart(6,'0');}
+function _hash(s){s=String(s||'x');let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function frontHair(style,hair){
+  switch(style){
+    case 0: return `<path d="M70 96 C68 64 132 64 130 96 C128 81 116 75 100 79 C84 75 72 81 70 96 Z" fill="${hair}"/>`;
+    case 1: return `<path d="M70 96 C68 64 132 64 130 96 C127 80 110 73 95 82 C88 77 74 80 70 96 Z" fill="${hair}"/>`;
+    case 2: return `<path d="M72 92 C72 67 128 67 128 92 C124 80 114 76 100 78 C86 76 76 80 72 92 Z" fill="${hair}"/>`;
+    case 3: return `<path d="M70 96 C68 64 132 64 130 96 C128 81 116 75 100 79 C84 75 72 81 70 96 Z" fill="${hair}"/>`;
+    default: return `<path d="M73 94 C73 70 127 70 127 94 C125 84 115 80 100 81 C86 80 75 84 73 94 Z" fill="${hair}"/>`;
+  }
+}
+function expr(e,ink,skinD){
+  const lx=89,rx=111,ey=93,my=112;
+  const brow=(x,dy,a)=>`<path d="M${x-7} ${78+dy+a} Q${x} ${74+dy} ${x+7} ${78+dy-a}" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const almond=x=>`<ellipse cx="${x}" cy="${ey}" rx="3.6" ry="4.7" fill="${ink}"/><circle cx="${x+1.2}" cy="${ey-1.7}" r="1.1" fill="#fff"/>`;
+  const wide=x=>`<circle cx="${x}" cy="${ey}" r="5.2" fill="#fff" stroke="${ink}" stroke-width="1.4"/><circle cx="${x}" cy="${ey+.4}" r="2.7" fill="${ink}"/>`;
+  const linEye=x=>`<path d="M${x-5} ${ey} h10" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/>`;
+  const nose=`<path d="M100 99 q3.5 5 -1 8" stroke="${skinD}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  let eyes,mouth,brows;
+  switch(e){
+    case 'flat': brows=brow(lx,0,0)+brow(rx,0,0); eyes=linEye(lx)+linEye(rx); mouth=`<path d="M91 ${my+2} h18" stroke="${ink}" stroke-width="3" stroke-linecap="round"/>`; break;
+    case 'worried': brows=brow(lx,-2,3)+brow(rx,-2,-3); eyes=almond(lx)+almond(rx); mouth=`<path d="M91 ${my+5} Q100 ${my} 109 ${my+5}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    case 'shock': brows=brow(lx,-4,0)+brow(rx,-4,0); eyes=wide(lx)+wide(rx); mouth=`<ellipse cx="100" cy="${my+3}" rx="5.4" ry="6.8" fill="${ink}"/>`; break;
+    case 'talk': brows=brow(lx,0,0)+brow(rx,0,0); eyes=almond(lx)+almond(rx); mouth=`<ellipse cx="100" cy="${my+2}" rx="6.4" ry="5.4" fill="${ink}"/><path d="M95 ${my+3.5} h10" stroke="#fff" stroke-width="1.3" opacity=".55"/>`; break;
+    case 'grin': brows=brow(lx,1,0)+brow(rx,1,0); eyes=almond(lx)+almond(rx); mouth=`<path d="M88 ${my-1} Q100 ${my+13} 112 ${my-1} Q100 ${my+4} 88 ${my-1} Z" fill="${ink}"/>`; break;
+    case 'wink': brows=brow(lx,0,0)+brow(rx,1,0); eyes=almond(lx)+`<path d="M${rx-5} ${ey+1} q5 4 10 -1" stroke="${ink}" stroke-width="2.8" fill="none" stroke-linecap="round"/>`; mouth=`<path d="M90 ${my} Q100 ${my+11} 110 ${my}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    case 'frown': brows=brow(lx,-1,-4)+brow(rx,-1,4); eyes=almond(lx)+almond(rx); mouth=`<path d="M91 ${my+5} Q100 ${my-2} 109 ${my+5}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    default: brows=brow(lx,0,0)+brow(rx,0,0); eyes=almond(lx)+almond(rx); mouth=`<path d="M92 ${my+1} Q100 ${my+8} 108 ${my+1}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  }
+  return brows+eyes+nose+mouth;
+}
+function avatar(color,pose,exp,seed){
+  const id="a"+(++_uid), h=_hash(seed||(pose+exp));
+  const SKIN=['#F4D8C0','#EFC9A8','#DCA982','#B6835A','#8C5E3C'];
+  const HAIR=['#2B2A33','#4A3526','#6E4A2C','#A07A47','#CDB079','#8E9099'];
+  const skin=SKIN[h%SKIN.length], skinD=shade(skin,-16);
+  const hair=HAIR[(h>>3)%HAIR.length];
+  const style=(h>>6)%5;
+  const cloth=color, clothD=shade(color,-18), ink="#2C2433";
+
+  let hairBack='';
+  if(style===3){ hairBack=`<ellipse cx="71" cy="116" rx="11" ry="29" fill="${hair}"/><ellipse cx="129" cy="116" rx="11" ry="29" fill="${hair}"/>`; }
+  hairBack += `<ellipse cx="100" cy="92" rx="34" ry="${style===4?33:36}" fill="${hair}"/>`;
+
+  let mic='',hand='',papers='',deco='',tilt=0;
+  const micG=`<g transform="rotate(-20 124 116)"><rect x="120" y="108" width="8.5" height="34" rx="4.2" fill="#39323F"/><ellipse cx="124.2" cy="106" rx="9.5" ry="10.5" fill="#574F63"/><ellipse cx="124.2" cy="106" rx="6" ry="7" fill="#7C7589"/><path d="M120 104 h8 M120 108 h8" stroke="#39323F" stroke-width="1"/></g>`;
+  switch(pose){
+    case 'big': hand=`<path d="M150 200 C150 168 156 150 163 139" stroke="${cloth}" stroke-width="16" fill="none" stroke-linecap="round"/><circle cx="165" cy="133" r="10" fill="${skin}"/>`; mic=micG; break;
+    case 'point': hand=`<path d="M152 200 C152 172 158 154 167 148" stroke="${cloth}" stroke-width="16" fill="none" stroke-linecap="round"/><circle cx="170" cy="146" r="9" fill="${skin}"/><rect x="167" y="122" width="5" height="22" rx="2.5" fill="${skin}"/>`; break;
+    case 'read': papers=`<g transform="rotate(-3 100 170)"><rect x="58" y="148" width="84" height="52" rx="5" fill="#F7F3EA" stroke="${clothD}" stroke-width="2.5"/><rect x="69" y="160" width="62" height="4" rx="2" fill="${shade(color,-4)}"/><rect x="69" y="172" width="52" height="4" rx="2" fill="${shade(color,-4)}"/><rect x="69" y="184" width="46" height="4" rx="2" fill="${shade(color,-4)}"/></g>`; break;
+    case 'overprep': deco=`<g><rect x="18" y="42" width="27" height="35" rx="3" fill="#F7F3EA" stroke="${clothD}" stroke-width="2" transform="rotate(-15 31 59)"/><rect x="156" y="48" width="27" height="35" rx="3" fill="#F7F3EA" stroke="${clothD}" stroke-width="2" transform="rotate(14 169 65)"/></g>`; break;
+    case 'shake': deco=`<path d="M40 84 q-6 8 0 16 M160 84 q6 8 0 16" stroke="${cloth}" stroke-width="3" fill="none" opacity=".7"/>`; break;
+    case 'fast': deco=`<rect x="12" y="92" width="28" height="4" rx="2" fill="${cloth}" opacity=".6"/><rect x="8" y="104" width="34" height="4" rx="2" fill="${cloth}" opacity=".4"/>`; mic=micG; break;
+    case 'flee': deco=`<rect x="10" y="98" width="30" height="4" rx="2" fill="${cloth}" opacity=".55"/><rect x="6" y="110" width="36" height="4" rx="2" fill="${cloth}" opacity=".38"/>`; tilt=-6; break;
+    case 'fidget': deco=`<path d="M152 150 q9 4 4 13 M44 158 q-9 4 -4 13" stroke="${cloth}" stroke-width="2.5" fill="none" opacity=".5"/>`; break;
+    case 'wander': deco=`<text x="150" y="72" font-family="Fraunces, Georgia, serif" font-size="36" font-weight="600" fill="${cloth}">?</text>`; tilt=4; break;
+    case 'joke': deco=`<path d="M152 56 l3.6 8.2 8.8 1 -6.2 6.2 1.6 8.8 -7.8 -4.2 -7.8 4.2 1.6 -8.8 -6.2 -6.2 8.8 -1 z" fill="${cloth}"/>`; tilt=5; break;
+  }
+  if(pose==='freeze'||pose==='shake'||exp==='shock'){ deco+=`<path d="M133 84 q4.2 7 0 11.5 q-4.2 -4.5 0 -11.5" fill="#86B4E6"/>`; }
+
+  const blush=`<ellipse cx="82" cy="106" rx="6" ry="3.5" fill="${shade(color,30)}" opacity=".45"/><ellipse cx="118" cy="106" rx="6" ry="3.5" fill="${shade(color,30)}" opacity=".45"/>`;
+
+  const headG=`<g transform="rotate(${tilt} 100 98)">
+    <ellipse cx="70" cy="101" rx="6" ry="9" fill="${skin}"/><ellipse cx="130" cy="101" rx="6" ry="9" fill="${skin}"/>
+    ${hairBack}
+    <ellipse cx="100" cy="98" rx="30" ry="32" fill="${skin}"/>
+    ${blush}
+    ${style===2?`<circle cx="100" cy="57" r="11" fill="${hair}"/>`:''}
+    ${frontHair(style,hair)}
+    ${expr(exp,ink,skinD)}
+  </g>`;
+
+  const body=`<path d="M50 200 C50 156 66 147 100 147 C134 147 150 156 150 200 Z" fill="${cloth}"/>
+    <path d="M81 150 Q100 167 119 150" stroke="${clothD}" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M91 127 Q91 144 100 146 Q109 144 109 127 Z" fill="${skin}"/>
+    <ellipse cx="100" cy="129" rx="11" ry="4" fill="${skinD}" opacity=".5"/>`;
+
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="speaker character">
+    <defs><clipPath id="${id}"><circle cx="100" cy="100" r="95"/></clipPath>
+      <radialGradient id="g${id}" cx="50%" cy="16%" r="78%"><stop offset="0%" stop-color="#fff" stop-opacity=".12"/><stop offset="62%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+    <circle cx="100" cy="100" r="95" fill="${color}" fill-opacity=".13"/>
+    <g clip-path="url(#${id})">
+      <rect x="0" y="0" width="200" height="200" fill="url(#g${id})"/>
+      ${deco}
+      <g ${pose==='shrink'?'transform="translate(18 24) scale(.79)"':''}>${body}${headG}${papers}${hand}</g>
+      ${mic}
+    </g>
+    <circle cx="100" cy="100" r="93.5" fill="none" stroke="${color}" stroke-width="3"/>
+  </svg>`;
+}
+
+/* ---------- data ---------- */
+const GROUPS=[
+  {id:"A",name:"The Overwhelmed",color:"#6B8CCF",blurb:"Nerves run the show. The body floods, fear takes the wheel, and the talk gets cut short, frozen, or shaken loose. Their problem is rarely the material — it's the alarm going off."},
+  {id:"B",name:"The Self-Doubters",color:"#A07CD0",blurb:"The skill is there; the belief isn't. They hedge, shrink, or over-prepare to cover a doubt that the room often can't even see."},
+  {id:"C",name:"The Untuned",color:"#4FB6A6",blurb:"The instrument needs work. Flat, fast, quiet, fidgety, or buried in notes — the message is sound, the delivery keeps getting in its way."},
+  {id:"D",name:"The Unstructured",color:"#E9B85C",blurb:"Plenty to say, no spine to hang it on. They wander, overload, bury the point, or leave nothing that sticks."},
+  {id:"E",name:"The Overpowering",color:"#E07A6B",blurb:"Confidence with no brakes. They fill the room, run long, push through, or deflect — and stop reading the people in front of them."},
+  {id:"F",name:"The Disconnected",color:"#D98AB0",blurb:"Competent but cut off. Warmth, give-and-take, and grace under challenge are the missing pieces."}
+];
+const P=[
+ {id:"escaper",g:"A",pose:"flee",face:"worried",name:"The Escaper",tag:"Flight, not fight — you cut and run.",one:"Speeds up and bails early to end the threat.",
+  drive:"High stakes meet high doubt, the body floods, and leaving ends the threat — so escaping gets rewarded and becomes a habit.",
+  portrait:"You speed up, skip sections and get off stage early. A five-minute talk somehow becomes ninety seconds.",
+  cue:"Set one rule: finish the full clock, however rough it feels. Staying up — not polish — is the win that breaks the pattern.",
+  with:["The Freezer","The Speed-Talker","The Shaker"]},
+ {id:"freezer",g:"A",pose:"freeze",face:"shock",name:"The Freezer",tag:"Not flight — you lock.",one:"Mind goes blank; the silence stretches.",
+  drive:"The same fear, but it triggers freeze rather than flight. The system stalls and can't restart.",
+  portrait:"Your mind goes blank, the silence stretches, and you can't find the thread again.",
+  cue:"Build a 'restart line' you can always fall back to — a single rehearsed sentence that gets you moving when you blank.",
+  with:["The Escaper","The Statue","The Shaker"]},
+ {id:"shaker",g:"A",pose:"shake",face:"worried",name:"The Shaker",tag:"The nerves are visible — and you know it.",one:"Trembling hands and voice become their own spiral.",
+  drive:"You watch your own symptoms and assume the room sees them as vividly as you feel them, which spikes the anxiety further.",
+  portrait:"Trembling hands, a wavering voice, a flush — and the visible signs become their own spiral.",
+  cue:"Give yourself a job in the room — one friendly face, one idea to land — so attention leaves your own body.",
+  with:["The Escaper","The Freezer","The Apologiser"]},
+ {id:"apologiser",g:"A",pose:"shrink",face:"worried",name:"The Apologiser",tag:"You lower the bar before anyone else can.",one:"Pre-emptive 'sorry' that hands away authority.",
+  drive:"Expecting to fall short, you downgrade expectations first — pre-emptive self-protection that quietly hands away your authority.",
+  portrait:"\u201CSorry,\u201D \u201Cthis is probably obvious,\u201D \u201CI'm not really the expert\u201D \u2014 nervous laughter and constant self-undercutting.",
+  cue:"Ban three filler-apologies and replace each with a two-second pause. Silence reads as confidence; apology erases it.",
+  with:["The Impostor","The People-Pleaser","The Shaker"]},
+ {id:"impostor",g:"B",pose:"shrink",face:"worried",name:"The Impostor",tag:"Qualified on paper, unconvinced inside.",one:"Hedges and defers despite real expertise.",
+  drive:"Your estimate of 'can I pull this off' is broken even though your competence isn't — so the wish to impress meets chronic doubt.",
+  portrait:"You hedge, defer, over-qualify, and downplay expertise you can clearly demonstrate.",
+  cue:"Open with a claim, not a caveat. State your point flat and unhedged in the first sentence, before doubt can soften it.",
+  with:["The Apologiser","The Overcompensator","The People-Pleaser"]},
+ {id:"overcompensator",g:"B",pose:"overprep",face:"worried",name:"The Overcompensator",tag:"Over-prepared into a corner.",one:"Scripted and brittle; one wobble topples it.",
+  drive:"Perfectionism as armour: scripting every word feels safe, but it strips out the flexibility you need when something shifts.",
+  portrait:"Memorised and brittle \u2014 one interruption or forgotten line and the whole structure topples.",
+  cue:"Trade your script for a five-point card. Practise recovering from a deliberate interruption until going off-plan feels survivable.",
+  with:["The Statue","The Reader","The Robot"]},
+ {id:"monotone",g:"C",pose:"flat",face:"flat",name:"The Monotone",tag:"All signal, no music.",one:"Flat pitch and pace; the room drifts off.",
+  drive:"Often a belief that delivery is beneath the content \u2014 the ideas should carry themselves \u2014 so the voice flatlines.",
+  portrait:"Flat pitch, flat pace, no light and shade; the room drifts off inside two minutes.",
+  cue:"Mark three words per paragraph to hit hard, and one place to fully stop. Contrast, not volume, wakes a room up.",
+  with:["The Robot","The Data-Dumper","The Reader"]},
+ {id:"mumbler",g:"C",pose:"shrink",face:"worried",name:"The Mumbler",tag:"Every punchline lost at the end.",one:"Too quiet; sentence-ends fade out.",
+  drive:"Speaking quietly and dropping sentence-ends is a way to take up less space and reduce exposure.",
+  portrait:"Too quiet, words swallowed, the ends of sentences fading just as the point lands.",
+  cue:"Drive energy into the LAST word of each sentence. The end carries the meaning \u2014 land it, don't bury it.",
+  with:["The Apologiser","The Impostor","The Freezer"]},
+ {id:"speedtalker",g:"C",pose:"fast",face:"talk",name:"The Speed-Talker",tag:"Fast — but not afraid.",one:"Relentless pace, no pauses; habit not fear.",
+  drive:"Usually habit or excitement rather than fear \u2014 there's no internal brake on pace and the pause feels unbearable.",
+  portrait:"Rapid, relentless, no breathing room; the audience can't keep up even though you're not trying to flee.",
+  cue:"Put full stops where commas live. Practise a two-second pause after every key point until it stops feeling like dead air.",
+  with:["The Filler-Machine","The Pacer","The Escaper"]},
+ {id:"filler",g:"C",pose:"fidget",face:"talk",name:"The Filler-Machine",tag:"Allergic to silence.",one:"Every gap plugged with 'um' and 'uh'.",
+  drive:"You read the pause as failure, so every gap gets plugged with sound.",
+  portrait:"\u201CUm, uh, like, you know, basically, so\u201D papering over the space between thoughts.",
+  cue:"When you feel an 'um' coming, close your mouth and count one-two. The silence is yours to use.",
+  with:["The Speed-Talker","The Rambler","The Apologiser"]},
+ {id:"statue",g:"C",pose:"freeze",face:"flat",name:"The Statue",tag:"Nervous energy, frozen in place.",one:"Locked rigid, white-knuckling the lectern.",
+  drive:"Holding the body rigid is a safety behaviour \u2014 keep still, don't draw fire \u2014 that reads as tension to the room.",
+  portrait:"Locked posture, white-knuckled lectern, gestures switched off entirely.",
+  cue:"Give your hands one deliberate job per point \u2014 a rehearsed gesture. Planned movement beats frozen stillness.",
+  with:["The Freezer","The Overcompensator","The Reader"]},
+ {id:"pacer",g:"C",pose:"fidget",face:"neutral",name:"The Pacer",tag:"Energy with nowhere to land.",one:"Sways and wanders; motion that distracts.",
+  drive:"The same nervous arousal as the Statue, discharged through aimless motion instead of locked into stillness.",
+  portrait:"Swaying, drifting across the stage, jangling keys \u2014 movement that distracts rather than directs.",
+  cue:"Plant your feet to make a point, then move only on transitions. Stillness on the key line is what makes it land.",
+  with:["The Speed-Talker","The Filler-Machine","The Rambler"]},
+ {id:"reader",g:"C",pose:"read",face:"neutral",name:"The Reader",tag:"Hiding behind the script.",one:"Reads notes verbatim; no eye contact.",
+  drive:"Notes and slides are both a crutch and a hiding place \u2014 eyes down means never meeting the audience's reaction.",
+  portrait:"Verbatim reading, no eye contact, no presence; the material stands between you and the room.",
+  cue:"Cut notes to keywords. Look up to deliver each sentence, then glance down for the next. Talk to faces, not paper.",
+  with:["The Overcompensator","The Monotone","The Data-Dumper"]},
+ {id:"rambler",g:"D",pose:"wander",face:"talk",name:"The Rambler",tag:"No spine, no exit.",one:"Tangents and loops; overstays the clock.",
+  drive:"You never built a backbone for the talk \u2014 and, unlike the Escaper, feel no urge to leave, so you stay and wander.",
+  portrait:"Tangents, loops, \u201Canyway, where was I\u201D \u2014 and a habit of overstaying the clock.",
+  cue:"Decide your three points and one closing line before anything else. If a sentence doesn't serve one of them, cut it.",
+  with:["The Filler-Machine","The Windbag","The Speed-Talker"]},
+ {id:"datadumper",g:"D",pose:"read",face:"talk",name:"The Data-Dumper",tag:"Comprehensive isn't clear.",one:"Too many slides, no hierarchy, no 'so what'.",
+  drive:"The expert's curse: you focus on everything you know rather than what the room can absorb, and mistake completeness for clarity.",
+  portrait:"Too many slides, too much detail, no hierarchy, no 'so what' \u2014 the signal drowned in the load.",
+  cue:"Decide the single thing they must remember, then cut everything that doesn't earn its place against it.",
+  with:["The Jargon-Monger","The Reader","The Bulldozer"]},
+ {id:"burier",g:"D",pose:"wander",face:"neutral",name:"The Burier",tag:"The point's in there somewhere.",one:"Good material; the takeaway never lands.",
+  drive:"You build the talk but never decide the single takeaway, so the message stays buried instead of landing.",
+  portrait:"Good material, even structure \u2014 but the audience leaves unsure what the one point actually was.",
+  cue:"Write your one-sentence takeaway first. Say it at the start and again at the end \u2014 repetition makes it stick.",
+  with:["The Data-Dumper","The Rambler","The Monotone"]},
+ {id:"jargon",g:"D",pose:"point",face:"talk",name:"The Jargon-Monger",tag:"Fluent in a language they don't share.",one:"Acronym soup, pitched over the room's head.",
+  drive:"A failure of audience-modelling \u2014 you assume the room shares your internal vocabulary and forget the listener isn't you.",
+  portrait:"Acronym soup and unexplained terms, pitched above where the room actually is.",
+  cue:"Translate every specialist term into one plain phrase the first time it appears. Assume nothing is shared.",
+  with:["The Data-Dumper","The Bulldozer","The Robot"]},
+ {id:"forgettable",g:"D",pose:"flat",face:"neutral",name:"The Forgettable",tag:"Pleasant, competent — and gone by lunch.",one:"Nothing wrong, nothing memorable.",
+  drive:"You deliver clean, reasonable content but never build a hook, a story, or one sharp idea \u2014 so nothing has anything to stick to.",
+  portrait:"Nobody could fault it, and nobody remembers it: no line, no image, no moment that survives the walk to the car park.",
+  cue:"Pick one idea, story, or vivid image and build the whole talk around it. People keep one sharp thing, never ten smooth ones.",
+  with:["The Monotone","The Data-Dumper","The Burier"]},
+ {id:"windbag",g:"E",pose:"big",face:"talk",name:"The Windbag",tag:"Confidence with no brakes.",one:"Loves the sound of it; blows past time.",
+  drive:"The inverse of stage fright \u2014 high drive to impress, no doubt, and no discipline to check it.",
+  portrait:"In love with your own voice, blowing past time, holding the floor and missing the room's cues.",
+  cue:"Set a hard time budget and a visible timer. Cut your material by a third \u2014 the discipline is the skill, not the volume.",
+  with:["The Rambler","The Bulldozer","The Showman"]},
+ {id:"showman",g:"E",pose:"big",face:"grin",name:"The Showman",tag:"Dazzle without delivery.",one:"Entertaining; you leave having learnt nothing.",
+  drive:"Your motivation points at applause rather than transfer of value \u2014 you perform to be admired, not to inform.",
+  portrait:"Slick, charismatic, fun to watch \u2014 and the room leaves having learnt nothing.",
+  cue:"Name the one idea you want them repeating tomorrow, and build the performance around landing it.",
+  with:["The Windbag","The Joker","The Bulldozer"]},
+ {id:"bulldozer",g:"E",pose:"point",face:"talk",name:"The Bulldozer",tag:"Broadcasting at, never to.",one:"Talks at the room; ignores every cue.",
+  drive:"One-directional delivery \u2014 you transmit at the room with no model of it as a responsive audience, sometimes signalling status.",
+  portrait:"Talking at people, no warmth, no adjustment, rolling past every cue that the room is lost.",
+  cue:"Build in two genuine checkpoints \u2014 a question, a show of hands, a pause to read faces \u2014 and change course on what you see.",
+  with:["The Jargon-Monger","The Data-Dumper","The Windbag"]},
+ {id:"joker",g:"E",pose:"joke",face:"wink",name:"The Joker",tag:"Deflecting before anyone can judge.",one:"Jokes dodge every sincere moment.",
+  drive:"Humour as a safety behaviour \u2014 a joke pre-empts judgement and spares you the exposure of a sincere point.",
+  portrait:"You can't sit in a serious moment, undercut your own authority, and reach for the gag whenever it gets real.",
+  cue:"Pick one moment to play completely straight \u2014 make your point, then hold the silence before you release the tension.",
+  with:["The Showman","The Windbag","The Apologiser"]},
+ {id:"robot",g:"F",pose:"flat",face:"flat",name:"The Robot",tag:"Polished, and somehow absent.",one:"Fluent and competent, but no warmth.",
+  drive:"Attention on flawless execution rather than people \u2014 often the residue of very successful over-rehearsal.",
+  portrait:"Fluent, competent, even smooth \u2014 but the room feels talked-at, not talked-with.",
+  cue:"Add one unscripted, human aside per talk \u2014 a real reaction, a direct word to the room. Imperfection reads as connection.",
+  with:["The Overcompensator","The Monotone","The Bulldozer"]},
+ {id:"pleaser",g:"F",pose:"shrink",face:"grin",name:"The People-Pleaser",tag:"So agreeable there's no point left.",one:"Folds the moment anyone pushes back.",
+  drive:"The need for approval crowds out everything else \u2014 avoiding rejection overrides actually having a position.",
+  portrait:"You dilute the message, agree with everyone, and fold the instant someone pushes back.",
+  cue:"Decide your one non-negotiable point in advance and hold it once, calmly, even if the room resists.",
+  with:["The Apologiser","The Impostor","The Mumbler"]},
+ {id:"defensive",g:"F",pose:"point",face:"frown",name:"The Defensive",tag:"Steady — until you're questioned.",one:"Fine in the talk; prickly under challenge.",
+  drive:"You're fine in the set piece, but a challenge reads as an attack on your competence and flips you into fight.",
+  portrait:"Composed through the talk, then prickly, argumentative or flustered the moment questions turn hard.",
+  cue:"Rehearse the three questions you most dread and a calm opening line for each. Treat the hard question as the most important part.",
+  with:["The Bulldozer","The Windbag","The Impostor"]}
+];
+
+/* ---------- render ---------- */
+const $=id=>document.getElementById(id);
+const gById=Object.fromEntries(GROUPS.map(g=>[g.id,g]));
+
+$("groupnav").innerHTML=GROUPS.map(g=>`<a href="#g-${g.id}" style="--gc:${g.color}">${g.name}</a>`).join("");
+
+$("groups").innerHTML=GROUPS.map(g=>{
+  const members=P.filter(p=>p.g===g.id);
+  const cards=members.map(p=>`
+    <div class="card" tabindex="0" role="button" data-id="${p.id}" style="--gc:${g.color}">
+      ${avatar(g.color,p.pose,p.face,p.id)}
+      <p class="pname">${p.name}</p>
+      <p class="pone">${p.one}</p>
+    </div>`).join("");
+  return `<section class="group" id="g-${g.id}" style="--gc:${g.color};--gline:${g.color}40">
+    <div class="group-head">
+      <p class="group-kicker">Family ${g.id} · ${members.length} profiles</p>
+      <h2 class="group-name">${g.name}</h2>
+      <p class="group-blurb">${g.blurb}</p>
+    </div>
+    <div class="grid">${cards}</div>
+  </section>`;
+}).join("");
+
+/* ---------- modal ---------- */
+const pById=Object.fromEntries(P.map(p=>[p.id,p]));
+function openModal(id){
+  const p=pById[id], g=gById[p.g];
+  document.documentElement.style.setProperty('--mc',g.color);
+  $("mAvatar").innerHTML=avatar(g.color,p.pose,p.face,p.id);
+  $("mChip").textContent=g.name; $("mChip").style.background=g.color;
+  $("mName").textContent=p.name;
+  $("mTag").textContent=p.tag;
+  $("mDrive").textContent=p.drive;
+  $("mPortrait").textContent=p.portrait;
+  $("mCue").textContent=p.cue; $("mCue").style.setProperty('--mc',g.color);
+  $("mTravels").innerHTML=p.with.map(w=>`<span>${w}</span>`).join("");
+  $("ov").classList.add("open"); document.body.style.overflow="hidden";
+}
+function closeModal(){ $("ov").classList.remove("open"); document.body.style.overflow=""; }
+document.addEventListener("click",e=>{
+  const c=e.target.closest(".card"); if(c){ openModal(c.dataset.id); }
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeModal();
+  if((e.key==="Enter"||e.key===" ") && document.activeElement.classList.contains("card")){ e.preventDefault(); openModal(document.activeElement.dataset.id); }
+});
+$("close").onclick=closeModal;
+$("ov").addEventListener("click",e=>{ if(e.target===$("ov")) closeModal(); });
+</script>
+</body>
+</html>

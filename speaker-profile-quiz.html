@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>What's Your Speaker Profile?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1426; --ink-2:#241830; --house:#150F1F;
+    --gold:#E9B85C; --gold-bright:#F2D08A; --gold-dim:#8C6E36;
+    --paper:#F4EFE4; --paper-2:#ECE4D4; --on-paper:#221A2B; --on-paper-soft:#5B5066;
+    --on-dark:#EDE6F2; --on-dark-soft:#A99FB5;
+    --line:rgba(233,184,92,.22); --rose:#CE8E86;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',system-ui,sans-serif; color:var(--on-dark);
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(233,184,92,.10), transparent 55%),
+      linear-gradient(180deg,var(--ink) 0%, var(--house) 100%);
+    background-attachment:fixed; min-height:100vh; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(20px,5vw,40px);}
+
+  .eyebrow{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin:0 0 18px;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(38px,8vw,68px);line-height:1.02;letter-spacing:-.015em;margin:0 0 22px;color:var(--on-dark);}
+  h1 em{font-style:italic;color:var(--gold-bright);}
+  .lede{font-size:clamp(16px,2.4vw,19px);color:var(--on-dark-soft);max-width:54ch;margin:0 0 14px;}
+  .meta{font-family:'Space Mono',monospace;font-size:12.5px;color:var(--on-dark-soft);letter-spacing:.04em;margin:30px 0 38px;}
+  .meta span{color:var(--gold);}
+
+  button{font-family:inherit;cursor:pointer;border:none;}
+  .btn{background:var(--gold);color:#241606;font-weight:600;font-size:16px;padding:15px 34px;border-radius:999px;letter-spacing:.01em;transition:transform .15s ease, box-shadow .2s ease, background .2s ease;box-shadow:0 0 0 rgba(233,184,92,0);}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 34px -10px rgba(233,184,92,.55);background:var(--gold-bright);}
+  .btn:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px;}
+  .btn.ghost{background:transparent;color:var(--on-dark);border:1px solid var(--line);box-shadow:none;}
+  .btn.ghost:hover{background:rgba(233,184,92,.08);transform:none;}
+
+  .pillars{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:6px 0 36px;}
+  .pillar{background:rgba(36,24,48,.6);padding:18px 20px;}
+  .pillar b{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:6px;font-weight:700;}
+  .pillar span{font-size:14px;color:var(--on-dark-soft);}
+  @media(min-width:620px){.pillars{grid-template-columns:1fr 1fr;}}
+
+  .topbar{display:flex;align-items:center;gap:16px;margin-bottom:30px;}
+  .track{flex:1;height:3px;background:rgba(233,184,92,.14);border-radius:2px;overflow:hidden;}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:width .35s cubic-bezier(.2,.7,.2,1);}
+  .count{font-family:'Space Mono',monospace;font-size:12.5px;color:var(--on-dark-soft);letter-spacing:.06em;white-space:nowrap;}
+  .count b{color:var(--gold);}
+
+  .qwrap{min-height:44vh;display:flex;flex-direction:column;justify-content:center;}
+  .qnum{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.2em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:20px;}
+  .qtext{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(23px,4.4vw,36px);line-height:1.2;letter-spacing:-.01em;color:var(--on-dark);margin:0;}
+  .likert{display:flex;flex-direction:column;gap:10px;}
+  .opt{display:flex;align-items:center;gap:16px;background:rgba(244,239,228,.04);border:1px solid var(--line);color:var(--on-dark);text-align:left;padding:15px 20px;border-radius:12px;font-size:15.5px;font-family:inherit;transition:background .15s ease,border-color .15s ease,transform .1s ease;}
+  .opt:hover{background:rgba(233,184,92,.1);border-color:var(--gold);}
+  .opt:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px;}
+  .opt .dot{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--gold-dim);flex:none;transition:background .15s,border-color .15s,box-shadow .15s;}
+  .opt:hover .dot{border-color:var(--gold);box-shadow:inset 0 0 0 4px rgba(233,184,92,.35);}
+  .opt.sel{background:rgba(233,184,92,.16);border-color:var(--gold);}
+  .opt.sel .dot{background:var(--gold);border-color:var(--gold);box-shadow:inset 0 0 0 3px var(--ink);}
+  .navrow{display:flex;justify-content:space-between;align-items:center;margin-top:30px;}
+  .backlink{background:none;color:var(--on-dark-soft);font-size:14px;padding:8px 4px;}
+  .backlink:hover{color:var(--gold);}
+  .backlink:disabled{opacity:.3;cursor:default;}
+  .backlink:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px;border-radius:4px;}
+
+  .reveal{text-align:center;padding-top:10px;}
+  .spot{position:relative;display:inline-block;margin:0 auto 4px;padding:34px 30px 10px;}
+  .spot::before{content:"";position:absolute;inset:-40px -30px auto;height:200px;background:radial-gradient(60% 100% at 50% 0,rgba(233,184,92,.34),transparent 70%);pointer-events:none;z-index:0;}
+  .spot-label{position:relative;z-index:1;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:14px;}
+  .spot-name{position:relative;z-index:1;font-family:'Fraunces',serif;font-weight:600;font-size:clamp(40px,8vw,72px);line-height:1;letter-spacing:-.02em;color:var(--on-dark);margin:0;}
+  .spot-tag{position:relative;z-index:1;font-style:italic;font-family:'Fraunces',serif;color:var(--gold-bright);font-size:clamp(17px,3vw,22px);margin-top:14px;}
+
+  .meter{margin:42px 0;text-align:left;}
+  .meter-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--on-dark-soft);margin-bottom:22px;display:flex;align-items:center;gap:10px;}
+  .meter-head::after{content:"";flex:1;height:1px;background:var(--line);}
+  .row{margin-bottom:22px;}
+  .row-top{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.04em;color:var(--on-dark-soft);margin-bottom:8px;}
+  .row-name{color:var(--gold);font-weight:700;letter-spacing:.16em;}
+  .bar{position:relative;height:16px;border-radius:4px;background:repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 4px, transparent 4px 8px),rgba(244,239,228,.05);border:1px solid var(--line);overflow:hidden;}
+  .zone{position:absolute;top:0;bottom:0;background:rgba(233,184,92,.12);border-left:1px dashed rgba(233,184,92,.3);border-right:1px dashed rgba(233,184,92,.3);}
+  .pip{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(233,184,92,.25),0 0 16px rgba(233,184,92,.7);transition:left 1s cubic-bezier(.2,.7,.2,1);z-index:2;}
+  .lead{position:absolute;top:50%;left:0;height:3px;transform:translateY(-50%);background:linear-gradient(90deg,transparent,var(--gold));border-radius:2px;transition:width 1s cubic-bezier(.2,.7,.2,1);z-index:1;}
+
+  /* ranked profiles */
+  .rank{margin:36px 0 8px;text-align:left;}
+  .rrow{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .rrow .rn{font-family:'Space Mono',monospace;font-size:12.5px;color:var(--on-dark);width:44%;}
+  .rrow.is1 .rn{color:var(--gold);font-weight:700;}
+  .rrow.is2 .rn{color:var(--gold-bright);}
+  .rtrack{flex:1;height:7px;background:rgba(244,239,228,.06);border:1px solid var(--line);border-radius:4px;overflow:hidden;}
+  .rfill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));width:0;transition:width .9s cubic-bezier(.2,.7,.2,1);}
+  .rpct{font-family:'Space Mono',monospace;font-size:12px;color:var(--on-dark-soft);width:40px;text-align:right;}
+
+  .card{background:var(--paper);color:var(--on-paper);border-radius:18px;padding:clamp(26px,4vw,40px);text-align:left;margin:26px 0;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);}
+  .card.sec{background:var(--paper-2);}
+  .card .kicker{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 6px;font-weight:700;}
+  .card .secname{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(26px,5vw,38px);line-height:1.05;margin:0 0 4px;color:var(--on-paper);}
+  .card .sectag{font-style:italic;font-family:'Fraunces',serif;color:var(--gold-dim);font-size:17px;margin:0 0 18px;}
+  .card h3{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 8px;}
+  .card h3:not(:first-child){margin-top:24px;}
+  .card p{margin:0;font-size:16px;color:var(--on-paper);}
+  .cue{background:var(--paper-2);border-left:3px solid var(--gold);padding:16px 20px;border-radius:0 10px 10px 0;font-size:15.5px;margin-top:10px;}
+  .card.sec .cue{background:rgba(140,110,54,.1);}
+  .travels{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .chip{font-family:'Space Mono',monospace;font-size:12px;background:var(--paper-2);color:var(--on-paper-soft);padding:6px 12px;border-radius:999px;letter-spacing:.02em;}
+  .card.sec .chip{background:rgba(140,110,54,.12);}
+
+  .balance{background:rgba(233,184,92,.1);border:1px solid var(--line);border-radius:12px;padding:16px 20px;font-size:14.5px;color:var(--on-dark-soft);margin:24px 0;text-align:left;}
+  .balance b{color:var(--gold);}
+
+  .science{font-size:13px;color:var(--on-dark-soft);text-align:left;border-top:1px solid var(--line);padding-top:22px;margin-top:30px;}
+  .science b{color:var(--on-dark);font-weight:600;}
+  .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:34px 0 10px;}
+  .toast{font-family:'Space Mono',monospace;font-size:12px;color:var(--gold);min-height:18px;text-align:center;letter-spacing:.04em;}
+  .disclaimer{font-size:12px;color:var(--on-dark-soft);opacity:.7;text-align:center;max-width:60ch;margin:30px auto 0;line-height:1.5;}
+
+  .langpick{display:flex;flex-direction:column;gap:8px;margin:2px 0 30px;max-width:360px;}
+  .langpick label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);}
+  .langpick select{appearance:none;-webkit-appearance:none;background-color:rgba(244,239,228,.05);border:1px solid var(--line);color:var(--on-dark);font-family:inherit;font-size:15px;padding:13px 42px 13px 16px;border-radius:12px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%23E9B85C' d='M6 8 0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center;}
+  .langpick select:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px;}
+  .qblock{margin:0 0 34px;}
+  .qtrans{margin:13px 0 0;font-size:clamp(15px,2.6vw,18px);color:var(--on-dark-soft);font-style:italic;line-height:1.4;padding-left:15px;border-left:2px solid var(--line);}
+  .ravatar{position:relative;z-index:1;margin:0 auto 4px;}
+  .ravatar svg{width:128px;height:128px;display:block;margin:0 auto;}
+  .lead{background:var(--paper);color:var(--on-paper);border-radius:18px;padding:clamp(22px,4vw,32px);text-align:left;margin:26px 0;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);}
+  .lead .kicker{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 8px;}
+  .leadcopy{font-size:15px;color:var(--on-paper-soft);margin:0 0 16px;}
+  .leadrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .leadrow input{flex:1;min-width:160px;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
+  .leadrow input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
+  .leadconsent{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--on-paper-soft);margin-bottom:16px;cursor:pointer;line-height:1.45;}
+  .leadconsent input{margin-top:3px;flex:none;}
+  .lead .btn{border:none;cursor:pointer;}
+  .leadmsg{font-family:'Space Mono',monospace;font-size:12.5px;min-height:16px;margin:12px 0 0;}
+  .hidden{display:none !important;}
+  @media (prefers-reduced-motion: reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- INTRO -->
+  <section id="intro">
+    <p class="eyebrow">The Speaker Profile Assessment</p>
+    <h1>Every nervous speaker is nervous in <em>their own way.</em></h1>
+    <p class="lede">Most people think public speaking has one fault — fear — and one fix: calm down. The research says otherwise. There are many distinct ways a talk goes wrong, each with a different root and a different remedy.</p>
+    <p class="lede">Answer 79 quick statements — there are no right answers, and they come in a random order, so just respond honestly rather than trying to read where each one is pointing. With two or more questions behind every profile, the result holds up. You'll get your strongest profile, your second-strongest lean, and what to do about each.</p>
+
+    <div class="pillars" aria-label="What this is built on">
+      <div class="pillar"><b>Measured, not guessed</b><span>Scored on four research-backed dimensions plus direct questions for each profile.</span></div>
+      <div class="pillar"><b>A pattern, not a verdict</b><span>You get a primary and a secondary profile — every pattern is coachable in a specific direction.</span></div>
+    </div>
+
+    <p class="meta">79 statements · about <span>10 minutes</span> · no sign-up</p>
+    <div class="langpick">
+      <label for="lang">Your first language</label>
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+        <option value="other">Another language — continue in English</option>
+      </select>
+    </div>
+    <button class="btn" id="start">Step into the light →</button>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="quiz" class="hidden">
+    <div class="topbar">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="count">Q<b id="qcur">1</b> / 79</div>
+    </div>
+    <div class="qwrap">
+      <p class="qnum" id="qsec">How it feels</p>
+      <div class="qblock">
+        <h2 class="qtext" id="qtext">Question</h2>
+        <p class="qtrans hidden" id="qtrans"></p>
+      </div>
+      <div class="likert" id="likert"></div>
+      <div class="navrow">
+        <button class="backlink" id="back" disabled>← Back</button>
+        <span class="count" style="opacity:.6">Pick the answer that fits best</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="hidden">
+    <div class="reveal">
+      <div class="spot">
+        <div id="rAvatar" class="ravatar"></div>
+        <div class="spot-label">Your strongest profile</div>
+        <h2 class="spot-name" id="rName">—</h2>
+        <div class="spot-tag" id="rTag"></div>
+      </div>
+
+      <div id="balanceBox"></div>
+
+      <div class="rank">
+        <div class="meter-head">Your closest profiles</div>
+        <div id="rankRows"></div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head">Your voice meter</div>
+        <div id="meterRows"></div>
+      </div>
+
+      <div class="card" id="primaryCard">
+        <p class="kicker">Primary profile</p>
+        <h3>The drive</h3>
+        <p id="rDrive"></p>
+        <h3>How it shows up</h3>
+        <p id="rPortrait"></p>
+        <h3>Your next rep</h3>
+        <div class="cue" id="rCue"></div>
+        <h3>Often travels with</h3>
+        <div class="travels" id="rTravels"></div>
+      </div>
+
+      <div class="card sec" id="secCard">
+        <p class="kicker">Your secondary lean</p>
+        <h2 class="secname" id="sName">—</h2>
+        <p class="sectag" id="sTag"></p>
+        <h3>Why it shows up</h3>
+        <p id="sDrive"></p>
+        <h3>Work on this too</h3>
+        <div class="cue" id="sCue"></div>
+      </div>
+
+      <div class="science">
+        <b>How this is scored.</b> Four dimensions place you in the landscape — Apprehension (McCroskey's Personal Report of Public Speaking Anxiety, 1970), Presence and Focus (Schlenker &amp; Leary's self-presentation theory, 1982, and Clark &amp; Wells' cognitive model, 1995, where self-focused attention and "safety behaviours" keep anxiety alive), and Preparation (the same safety-behaviour research plus the conscientiousness trait). On top of that, direct questions score each profile individually, so your result is a ranked match rather than a single guess. The fix throughout: reappraise the nerves as excitement rather than fighting them (Brooks, 2014).
+      </div>
+
+      <div class="lead" id="leadBox">
+        <p class="kicker">Get your results by email</p>
+        <p class="leadcopy">Add your details and we'll send your profile and a tailored next step — and let you know when the full programme opens.</p>
+        <div class="leadrow">
+          <input id="leadName" type="text" placeholder="Your name" autocomplete="name" />
+          <input id="leadEmail" type="email" placeholder="Your email" autocomplete="email" />
+        </div>
+        <label class="leadconsent"><input type="checkbox" id="leadConsent" /> <span>I'm happy to be contacted about my results. You can unsubscribe at any time, and your details are only used to send your results and updates about the programme.</span></label>
+        <button class="btn" id="leadSend">Send me my results</button>
+        <p class="leadmsg" id="leadMsg"></p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="share">Copy my result</button>
+        <a class="btn ghost" href="./">Explore all profiles →</a>
+        <button class="btn ghost" id="retake">Retake</button>
+      </div>
+      <p class="toast" id="toast"></p>
+      <p class="disclaimer">This is a coaching and self-awareness tool, not a clinical assessment. If fear of speaking is part of a wider, persistent anxiety in social situations, a qualified mental-health professional is the right person to see.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ---------- DIMENSIONS (0-100) ----------
+   A Apprehension : 0 composed  -> 100 apprehensive
+   P Presence     : 0 shrinking -> 100 dominating
+   F Focus        : 0 self       -> 100 the room
+   C Preparation  : 0 loose      -> 100 rigid
+------------------------------------------- */
+const DIMS = {
+  A:{name:"Apprehension", lo:"Composed", hi:"Apprehensive"},
+  P:{name:"Presence",     lo:"Shrinking", hi:"Dominating"},
+  F:{name:"Focus",        lo:"Self",      hi:"The room"},
+  C:{name:"Preparation",  lo:"Loose",     hi:"Rigid"}
+};
+
+/* QUESTIONS
+   type "dim":  {type,d,dir,t}   dir +1 towards hi pole, -1 towards lo pole
+   type "tell": {type,p,t}       agree => more of profile p
+*/
+const Q = [
+  /* Apprehension dimension */
+  {type:"dim",d:"A",dir:+1,t:"My body reacts before I speak — a faster heartbeat, unsteady hands."},
+  {type:"dim",d:"A",dir:+1,t:"Being the focus of a whole room is something I find hard."},
+  {type:"dim",d:"A",dir:+1,t:"An upcoming talk tends to sit on my mind for days."},
+  {type:"dim",d:"A",dir:-1,t:"I feel relaxed and at home in front of an audience."},
+  {type:"dim",d:"A",dir:+1,t:"I worry about my mind going blank partway through."},
+  {type:"dim",d:"A",dir:+1,t:"Afterwards, I replay the parts I think I got wrong."},
+  {type:"dim",d:"A",dir:+1,t:"Beforehand, I tend to picture it going wrong more than going well."},
+  /* Presence dimension */
+  {type:"dim",d:"P",dir:+1,t:"Once I get going, I find it hard to stop."},
+  {type:"dim",d:"P",dir:-1,t:"When nervous, I take up less space and go quieter."},
+  {type:"dim",d:"P",dir:+1,t:"I'm at ease holding the floor as the main voice."},
+  {type:"dim",d:"P",dir:-1,t:"I'd sooner say a little less than risk saying too much."},
+  {type:"dim",d:"P",dir:+1,t:"I tend to run a bit over my time."},
+  {type:"dim",d:"P",dir:-1,t:"In a group, I'm happy to let others do most of the talking."},
+  /* Focus dimension */
+  {type:"dim",d:"F",dir:-1,t:"While speaking, much of my attention is on how I'm coming across."},
+  {type:"dim",d:"F",dir:+1,t:"I keep a close read on the audience and adjust as I go."},
+  {type:"dim",d:"F",dir:-1,t:"My nerves tend to pull my attention inward."},
+  {type:"dim",d:"F",dir:+1,t:"I shape a talk around the audience more than around my material."},
+  {type:"dim",d:"F",dir:-1,t:"I can lose track of whether people are still following."},
+  {type:"dim",d:"F",dir:+1,t:"I pick up quickly from faces when something isn't landing."},
+  /* Preparation dimension */
+  {type:"dim",d:"C",dir:+1,t:"I like to work a talk out and rehearse it closely beforehand."},
+  {type:"dim",d:"C",dir:-1,t:"I'm comfortable speaking off the cuff."},
+  {type:"dim",d:"C",dir:+1,t:"Losing my place tends to rattle me."},
+  {type:"dim",d:"C",dir:-1,t:"My talks can wander without a firm structure."},
+  {type:"dim",d:"C",dir:+1,t:"I rely on my notes or slides to keep me on track."},
+  {type:"dim",d:"C",dir:+1,t:"I'm uneasy speaking unless I've mapped out what to say."},
+  /* Tells — anxiety & physiology */
+  {type:"tell",p:"freezer",t:"Under real pressure, my thoughts can empty out and I go quiet."},
+  {type:"tell",p:"freezer",t:"There have been times I needed a moment to find my words again."},
+  {type:"tell",p:"shaker",t:"I'm quite aware of physical signs of nerves — a warm face, an unsteady hand."},
+  {type:"tell",p:"shaker",t:"I notice my own nervousness more than I notice the audience."},
+  {type:"tell",p:"shaker",t:"My mouth can go dry or my voice tighten in the first minute."},
+  {type:"tell",p:"escaper",t:"Given the choice, I'd rather keep a talk short and reach the end."},
+  {type:"tell",p:"escaper",t:"If nerves build, my instinct is to pick up the pace and wrap up."},
+  /* Tells — self-perception */
+  {type:"tell",p:"impostor",t:"Even on topics I know well, part of me feels I haven't quite earned the platform."},
+  {type:"tell",p:"impostor",t:"I tend to assume others in the room know the subject better than I do."},
+  {type:"tell",p:"impostor",t:"I measure myself against polished speakers and feel I fall short."},
+  {type:"tell",p:"pleaser",t:"Getting the audience to warm to me matters a lot to how I speak."},
+  {type:"tell",p:"pleaser",t:"If someone pushes back, I'll usually give ground to keep things comfortable."},
+  {type:"tell",p:"apologiser",t:"I often add qualifiers as I go — 'this may be obvious', 'I'm no expert'."},
+  {type:"tell",p:"apologiser",t:"I tend to soften or play down my own points."},
+  /* Tells — mechanics */
+  {type:"tell",p:"monotone",t:"My delivery tends to stay fairly even rather than varied."},
+  {type:"tell",p:"monotone",t:"I put more weight on what I say than on how it sounds."},
+  {type:"tell",p:"mumbler",t:"I'm naturally on the quieter, softly-spoken side."},
+  {type:"tell",p:"mumbler",t:"My volume tends to ease off towards the end of a sentence."},
+  {type:"tell",p:"speedtalker",t:"My natural pace is on the quick side."},
+  {type:"tell",p:"speedtalker",t:"I tend to keep momentum going rather than pause much."},
+  {type:"tell",p:"filler",t:"I tend to keep some sound going between thoughts rather than leave a gap."},
+  {type:"tell",p:"filler",t:"A silence mid-talk feels like something to fill."},
+  {type:"tell",p:"statue",t:"I tend to stay quite still and planted when I speak."},
+  {type:"tell",p:"statue",t:"I often hold on to the lectern, a clicker, or my notes."},
+  {type:"tell",p:"statue",t:"I'm not always sure what to do with my hands up there."},
+  {type:"tell",p:"pacer",t:"I tend to move or shift around while I speak."},
+  {type:"tell",p:"pacer",t:"My movement isn't always tied to what I'm saying."},
+  {type:"tell",p:"reader",t:"I like to keep my notes or slides close and refer to them often."},
+  {type:"tell",p:"reader",t:"I find it easier to look at my material than at the audience."},
+  /* Tells — structure & content */
+  {type:"tell",p:"rambler",t:"I tend to follow tangents where they take me."},
+  {type:"tell",p:"rambler",t:"I sometimes carry on past the natural stopping point."},
+  {type:"tell",p:"rambler",t:"Starting to prepare a talk, I often don't know where to begin."},
+  {type:"tell",p:"datadumper",t:"I lean towards including more detail rather than less."},
+  {type:"tell",p:"datadumper",t:"I'd rather cover everything than risk leaving something out."},
+  {type:"tell",p:"jargon",t:"I'm comfortable using the technical vocabulary of my field."},
+  {type:"tell",p:"jargon",t:"I sometimes forget the audience doesn't share my background."},
+  {type:"tell",p:"burier",t:"I tend to trust the audience to draw the main point out themselves."},
+  {type:"tell",p:"burier",t:"I don't always spell out a single headline takeaway."},
+  {type:"tell",p:"forgettable",t:"I keep things clear and straightforward rather than reaching for stories or hooks."},
+  {type:"tell",p:"forgettable",t:"I'm not really one for building in a memorable line or moment."},
+  /* Tells — presence & ego */
+  {type:"tell",p:"windbag",t:"Given the chance, I'd happily talk for longer than the slot allows."},
+  {type:"tell",p:"windbag",t:"I prefer to hold the floor without being interrupted."},
+  {type:"tell",p:"showman",t:"I put real effort into keeping a talk lively and entertaining."},
+  {type:"tell",p:"showman",t:"I'd rather be remembered as engaging than as the most thorough."},
+  {type:"tell",p:"bulldozer",t:"Once I've set my line, I tend to push through to the end of it."},
+  {type:"tell",p:"bulldozer",t:"I keep to my plan even if the room's energy shifts."},
+  {type:"tell",p:"joker",t:"I tend to lighten serious moments with a bit of humour."},
+  {type:"tell",p:"joker",t:"I'm more at ease with a joke than with a sincere pause."},
+  /* Tells — connection & control */
+  {type:"tell",p:"robot",t:"I focus on getting the content right more than on warmth."},
+  {type:"tell",p:"robot",t:"I've been told I come across as polished but a little detached."},
+  {type:"tell",p:"overcompensator",t:"I like to have a talk fully worked out and rehearsed in advance."},
+  {type:"tell",p:"overcompensator",t:"If things go off my plan, it tends to throw me."},
+  {type:"tell",p:"defensive",t:"I'm steadier delivering than I am fielding unexpected questions."},
+  {type:"tell",p:"defensive",t:"If I'm asked something I didn't prepare for, I can be caught off guard."}
+];
+
+/* ---------- PROFILES (sig = [A,P,F,C]) ---------- */
+const PROFILES = [
+  {id:"escaper",name:"The Escaper",tag:"Flight, not fight — you cut and run.",sig:[85,20,25,35],
+   drive:"High stakes meet high doubt, the body floods, and leaving ends the threat — so escaping gets rewarded and becomes a habit.",
+   portrait:"You speed up, skip sections and get off stage early. A five-minute talk somehow becomes ninety seconds.",
+   cue:"Set one rule for your next talk: finish the full clock, however rough it feels. Staying up — not polish — is the win that breaks the pattern.",
+   with:["The Freezer","The Speed-Talker","The Shaker"]},
+  {id:"freezer",name:"The Freezer",tag:"Not flight — you lock.",sig:[95,10,20,50],
+   drive:"The same fear, but it triggers freeze rather than flight. The system stalls and can't restart.",
+   portrait:"Your mind goes blank, the silence stretches, and you can't find the thread again.",
+   cue:"Build a 'restart line' you can always fall back to — a single rehearsed sentence that gets you moving when you blank.",
+   with:["The Escaper","The Statue","The Shaker"]},
+  {id:"shaker",name:"The Shaker",tag:"The nerves are visible — and you know it.",sig:[85,30,20,50],
+   drive:"You watch your own symptoms and assume the room sees them as vividly as you feel them, which spikes the anxiety further.",
+   portrait:"Trembling hands, a wavering voice, a flush — and the visible signs become their own spiral.",
+   cue:"Redirect attention outward: give yourself a job in the room (one friendly face, one idea to land) so focus leaves your own body.",
+   with:["The Escaper","The Freezer","The Apologiser"]},
+  {id:"apologiser",name:"The Apologiser",tag:"You lower the bar before anyone else can.",sig:[80,25,45,40],
+   drive:"Expecting to fall short, you downgrade expectations first — pre-emptive self-protection that quietly hands away your authority.",
+   portrait:"\"Sorry,\" \"this is probably obvious,\" \"I'm not really the expert\" — nervous laughter and constant self-undercutting.",
+   cue:"Ban three filler-apologies for your next talk. Replace each with a two-second pause. Silence reads as confidence; apology erases it.",
+   with:["The Impostor","The People-Pleaser","The Shaker"]},
+  {id:"impostor",name:"The Impostor",tag:"Qualified on paper, unconvinced inside.",sig:[70,25,25,55],
+   drive:"Your estimate of 'can I pull this off' is broken even though your competence isn't — so the wish to impress meets chronic doubt.",
+   portrait:"You hedge, defer, over-qualify, and downplay expertise you can clearly demonstrate.",
+   cue:"Open with a claim, not a caveat. State your point flat and unhedged in the first sentence, before doubt can soften it.",
+   with:["The Apologiser","The Overcompensator","The People-Pleaser"]},
+  {id:"overcompensator",name:"The Overcompensator",tag:"Over-prepared into a corner.",sig:[75,45,25,95],
+   drive:"Perfectionism as armour: scripting every word feels safe, but it strips out the flexibility you need when something shifts.",
+   portrait:"Memorised and brittle — one interruption or forgotten line and the whole structure topples.",
+   cue:"Trade your script for a five-point card. Practise recovering from a deliberate interruption until going off-plan feels survivable.",
+   with:["The Statue","The Reader","The Robot"]},
+  {id:"monotone",name:"The Monotone",tag:"All signal, no music.",sig:[40,40,25,65],
+   drive:"Often a belief that delivery is beneath the content — the ideas should carry themselves — so the voice flatlines.",
+   portrait:"Flat pitch, flat pace, no light and shade; the room drifts off inside two minutes.",
+   cue:"Mark three words per paragraph to hit hard, and one place to fully stop. Contrast, not volume, is what wakes a room up.",
+   with:["The Robot","The Data-Dumper","The Reader"]},
+  {id:"mumbler",name:"The Mumbler",tag:"Every punchline lost at the end.",sig:[70,10,25,30],
+   drive:"Speaking quietly and dropping sentence-ends is a way to take up less space and reduce exposure.",
+   portrait:"Too quiet, words swallowed, the ends of sentences fading just as the point lands.",
+   cue:"Practise driving energy into the LAST word of each sentence. The end carries the meaning — land it, don't bury it.",
+   with:["The Apologiser","The Impostor","The Freezer"]},
+  {id:"speedtalker",name:"The Speed-Talker",tag:"Fast — but not afraid.",sig:[45,75,30,25],
+   drive:"Usually habit or excitement rather than fear — there's no internal brake on pace and the pause feels unbearable.",
+   portrait:"Rapid, relentless, no breathing room; the audience can't keep up even though you're not trying to flee.",
+   cue:"Put full stops where commas live. Practise a deliberate two-second pause after every key point until it stops feeling like dead air.",
+   with:["The Filler-Machine","The Pacer","The Escaper"]},
+  {id:"filler",name:"The Filler-Machine",tag:"Allergic to silence.",sig:[55,55,30,25],
+   drive:"You read the pause as failure, so every gap gets plugged with sound.",
+   portrait:"\"Um, uh, like, you know, basically, so\" papering over the space between thoughts.",
+   cue:"Learn to love the pause. When you feel an 'um' coming, close your mouth and count one-two. The silence is yours to use.",
+   with:["The Speed-Talker","The Rambler","The Apologiser"]},
+  {id:"statue",name:"The Statue",tag:"Nervous energy, frozen in place.",sig:[80,20,25,85],
+   drive:"Holding the body rigid is a safety behaviour — keep still, don't draw fire — that reads as tension to the room.",
+   portrait:"Locked posture, white-knuckled lectern, gestures switched off entirely.",
+   cue:"Give your hands one deliberate job per point — a gesture you've rehearsed. Planned movement beats frozen stillness or random fidget.",
+   with:["The Freezer","The Overcompensator","The Reader"]},
+  {id:"pacer",name:"The Pacer",tag:"Energy with nowhere to land.",sig:[65,75,30,25],
+   drive:"The same nervous arousal as the Statue, discharged through aimless motion instead of locked into stillness.",
+   portrait:"Swaying, drifting across the stage, jangling keys — movement that distracts rather than directs.",
+   cue:"Plant your feet to make a point, then move only on transitions. Stillness on the key line is what makes it land.",
+   with:["The Speed-Talker","The Filler-Machine","The Rambler"]},
+  {id:"reader",name:"The Reader",tag:"Hiding behind the script.",sig:[65,25,20,85],
+   drive:"Notes and slides are both a crutch and a hiding place — eyes down means never meeting the audience's reaction.",
+   portrait:"Verbatim reading, no eye contact, no presence; the material stands between you and the room.",
+   cue:"Cut your notes to keywords only. Practise looking up to deliver each sentence, then glancing down for the next. Talk to faces, not paper.",
+   with:["The Overcompensator","The Monotone","The Data-Dumper"]},
+  {id:"rambler",name:"The Rambler",tag:"No spine, no exit.",sig:[40,75,40,10],
+   drive:"You never built a backbone for the talk — and, unlike the Escaper, feel no urge to leave, so you stay and wander.",
+   portrait:"Tangents, loops, \"anyway, where was I\" — and a habit of overstaying the clock.",
+   cue:"Decide your three points and your one closing line before anything else. If a sentence doesn't serve one of them, cut it.",
+   with:["The Filler-Machine","The Windbag","The Speed-Talker"]},
+  {id:"datadumper",name:"The Data-Dumper",tag:"Comprehensive isn't clear.",sig:[40,65,25,85],
+   drive:"The expert's curse: you focus on everything you know rather than what the room can absorb, and mistake completeness for clarity.",
+   portrait:"Too many slides, too much detail, no hierarchy, no 'so what' — the signal drowned in the load.",
+   cue:"Decide the single thing they must remember, then cut everything that doesn't earn its place against it. One idea, made unmissable.",
+   with:["The Jargon-Monger","The Reader","The Bulldozer"]},
+  {id:"jargon",name:"The Jargon-Monger",tag:"Fluent in a language they don't share.",sig:[30,55,15,55],
+   drive:"A failure of audience-modelling — you assume the room shares your internal vocabulary and forget the listener isn't you.",
+   portrait:"Acronym soup and unexplained terms, pitched above where the room actually is.",
+   cue:"For your next talk, translate every specialist term into one plain phrase the first time it appears. Assume nothing is shared.",
+   with:["The Data-Dumper","The Bulldozer","The Robot"]},
+  {id:"windbag",name:"The Windbag",tag:"Confidence with no brakes.",sig:[15,95,25,30],
+   drive:"The inverse of stage fright — high drive to impress, no doubt, and no discipline to check it.",
+   portrait:"In love with your own voice, blowing past time, holding the floor and missing the room's cues.",
+   cue:"Set a hard time budget and a visible timer. Cut your material by a third — the discipline is the skill, not the volume.",
+   with:["The Rambler","The Bulldozer","The Showman"]},
+  {id:"showman",name:"The Showman",tag:"Dazzle without delivery.",sig:[30,85,55,50],
+   drive:"Your motivation points at applause rather than transfer of value — you perform to be admired, not to inform.",
+   portrait:"Slick, charismatic, fun to watch — and the room leaves having learnt nothing.",
+   cue:"Name the one idea you want them repeating tomorrow, and build the performance around landing it. Charisma in service of a point.",
+   with:["The Windbag","The Joker","The Bulldozer"]},
+  {id:"bulldozer",name:"The Bulldozer",tag:"Broadcasting at, never to.",sig:[25,85,15,70],
+   drive:"One-directional delivery — you transmit at the room with no model of it as a responsive audience, sometimes signalling status.",
+   portrait:"Talking at people, no warmth, no adjustment, rolling past every cue that the room is lost.",
+   cue:"Build in two genuine checkpoints — a question, a show of hands, a pause to read faces — and actually change course on what you see.",
+   with:["The Jargon-Monger","The Data-Dumper","The Windbag"]},
+  {id:"joker",name:"The Joker",tag:"Deflecting before anyone can judge.",sig:[50,75,50,25],
+   drive:"Humour as a safety behaviour — a joke pre-empts judgement and spares you the exposure of a sincere point.",
+   portrait:"You can't sit in a serious moment, undercut your own authority, and reach for the gag whenever it gets real.",
+   cue:"Pick one moment to play completely straight — make your point, then hold the silence. Let it land before you release the tension.",
+   with:["The Showman","The Windbag","The Apologiser"]},
+  {id:"robot",name:"The Robot",tag:"Polished, and somehow absent.",sig:[40,50,20,85],
+   drive:"Attention on flawless execution rather than people — often the residue of very successful over-rehearsal.",
+   portrait:"Fluent, competent, even smooth — but the room feels talked-at, not talked-with.",
+   cue:"Add one unscripted, human aside per talk — a real reaction, a direct word to the room. Imperfection is what reads as connection.",
+   with:["The Overcompensator","The Monotone","The Bulldozer"]},
+  {id:"pleaser",name:"The People-Pleaser",tag:"So agreeable there's no point left.",sig:[80,25,80,30],
+   drive:"The need for approval crowds out everything else — avoiding rejection overrides actually having a position.",
+   portrait:"You dilute the message, agree with everyone, and fold the instant someone pushes back.",
+   cue:"Decide your one non-negotiable point in advance and hold it once, calmly, even if the room resists. A position you'll defend is the asset.",
+   with:["The Apologiser","The Impostor","The Mumbler"]},
+  {id:"defensive",name:"The Defensive",tag:"Steady — until you're questioned.",sig:[40,80,25,55],
+   drive:"You're fine in the set piece, but a challenge reads as an attack on your competence and flips you into fight.",
+   portrait:"Composed through the talk, then prickly, argumentative or flustered the moment questions turn hard.",
+   cue:"Rehearse the three questions you most dread and a calm opening line for each. Treat the hard question as the most important part, not the threat.",
+   with:["The Bulldozer","The Windbag","The Impostor"]},
+  {id:"burier",name:"The Burier",tag:"The point's in there somewhere.",sig:[45,50,45,55],
+   drive:"You build the talk but never decide the single takeaway, so the message stays buried instead of landing.",
+   portrait:"Good material, even structure — but the audience leaves unsure what the one point actually was.",
+   cue:"Write your one-sentence takeaway first. Say it out loud at the start and again at the end — repetition is what makes a point stick.",
+   with:["The Data-Dumper","The Rambler","The Monotone"]},
+  {id:"forgettable",name:"The Forgettable",tag:"Pleasant, competent — and gone from memory by lunch.",sig:[40,45,40,50],
+   drive:"You deliver clean, reasonable content but never build a hook, a story, or one sharp idea — so nothing has anything to stick to.",
+   portrait:"Nobody could fault it, and nobody remembers it: no line, no image, no moment that survives the walk to the car park.",
+   cue:"Pick one idea, story, or vivid image and build the whole talk around it. People keep one sharp thing, never ten smooth ones.",
+   with:["The Monotone","The Data-Dumper","The Burier"]}
+];
+const TR = {
+  fr:{
+    prompt:"Dans quelle mesure est-ce vrai pour vous ?",
+    back:"Retour",
+    likert:["Pas du tout d'accord","Plutôt pas d'accord","Neutre","Plutôt d'accord","Tout à fait d'accord"],
+    q:{
+      "My body reacts before I speak — a faster heartbeat, unsteady hands.":"Mon corps réagit avant même que je parle — cœur qui s'accélère, mains qui tremblent.",
+      "Being the focus of a whole room is something I find hard.":"Être au centre de l'attention de toute une salle me pèse.",
+      "An upcoming talk tends to sit on my mind for days.":"Une intervention à venir me trotte dans la tête pendant des jours.",
+      "I feel relaxed and at home in front of an audience.":"Je me sens détendu(e) et à l'aise devant un public.",
+      "I worry about my mind going blank partway through.":"J'ai peur d'avoir un trou de mémoire en plein milieu.",
+      "Afterwards, I replay the parts I think I got wrong.":"Après coup, je repasse en boucle les passages que je crois avoir ratés.",
+      "Beforehand, I tend to picture it going wrong more than going well.":"Avant, j'ai tendance à imaginer que ça va mal se passer plutôt que bien.",
+      "Once I get going, I find it hard to stop.":"Une fois lancé(e), j'ai du mal à m'arrêter.",
+      "When nervous, I take up less space and go quieter.":"Quand je suis nerveux(se), je prends moins de place et je parle plus bas.",
+      "I'm at ease holding the floor as the main voice.":"Je suis à l'aise pour prendre la parole et occuper le devant de la scène.",
+      "I'd sooner say a little less than risk saying too much.":"Je préfère en dire un peu moins que risquer d'en dire trop.",
+      "I tend to run a bit over my time.":"J'ai tendance à dépasser un peu le temps imparti.",
+      "In a group, I'm happy to let others do most of the talking.":"En groupe, je laisse volontiers les autres parler la plupart du temps.",
+      "While speaking, much of my attention is on how I'm coming across.":"Quand je parle, une grande partie de mon attention est tournée vers l'image que je donne.",
+      "I keep a close read on the audience and adjust as I go.":"Je reste très attentif(ve) au public et je m'adapte au fur et à mesure.",
+      "My nerves tend to pull my attention inward.":"Ma nervosité a tendance à ramener mon attention vers moi-même.",
+      "I shape a talk around the audience more than around my material.":"Je construis une intervention autour du public plus qu'autour de mon contenu.",
+      "I can lose track of whether people are still following.":"Il m'arrive de ne plus savoir si les gens suivent encore.",
+      "I pick up quickly from faces when something isn't landing.":"Je perçois vite, sur les visages, quand quelque chose ne passe pas.",
+      "I like to work a talk out and rehearse it closely beforehand.":"J'aime préparer et répéter une intervention en détail à l'avance.",
+      "I'm comfortable speaking off the cuff.":"Je suis à l'aise pour improviser quand je prends la parole.",
+      "Losing my place tends to rattle me.":"Perdre le fil a tendance à me déstabiliser.",
+      "My talks can wander without a firm structure.":"Mes interventions peuvent partir dans tous les sens sans structure claire.",
+      "I rely on my notes or slides to keep me on track.":"Je m'appuie sur mes notes ou mes diapositives pour ne pas perdre le fil.",
+      "I'm uneasy speaking unless I've mapped out what to say.":"Je suis mal à l'aise pour parler si je n'ai pas planifié ce que je vais dire.",
+      "Under real pressure, my thoughts can empty out and I go quiet.":"Sous forte pression, mes pensées peuvent se vider et je reste sans voix.",
+      "There have been times I needed a moment to find my words again.":"Il m'est déjà arrivé d'avoir besoin d'un instant pour retrouver mes mots.",
+      "I'm quite aware of physical signs of nerves — a warm face, an unsteady hand.":"Je suis bien conscient(e) des signes physiques du trac — visage chaud, main qui tremble.",
+      "I notice my own nervousness more than I notice the audience.":"Je remarque ma propre nervosité plus que je ne remarque le public.",
+      "My mouth can go dry or my voice tighten in the first minute.":"J'ai parfois la bouche sèche ou la gorge qui se serre dans la première minute.",
+      "Given the choice, I'd rather keep a talk short and reach the end.":"Si j'ai le choix, je préfère faire court et en finir vite.",
+      "If nerves build, my instinct is to pick up the pace and wrap up.":"Si le trac monte, mon réflexe est d'accélérer et d'abréger.",
+      "Even on topics I know well, part of me feels I haven't quite earned the platform.":"Même sur des sujets que je maîtrise, une part de moi a l'impression de ne pas vraiment être légitime.",
+      "I tend to assume others in the room know the subject better than I do.":"J'ai tendance à supposer que les autres dans la salle connaissent le sujet mieux que moi.",
+      "I measure myself against polished speakers and feel I fall short.":"Je me compare aux orateurs aguerris et j'ai le sentiment de ne pas être à la hauteur.",
+      "Getting the audience to warm to me matters a lot to how I speak.":"Que le public m'apprécie compte beaucoup dans ma façon de parler.",
+      "If someone pushes back, I'll usually give ground to keep things comfortable.":"Si quelqu'un me contredit, je cède en général pour éviter les tensions.",
+      "I often add qualifiers as I go — 'this may be obvious', 'I'm no expert'.":"Je multiplie les précautions oratoires — « c'est peut-être évident », « je ne suis pas spécialiste ».",
+      "I tend to soften or play down my own points.":"J'ai tendance à atténuer ou à minimiser mes propres arguments.",
+      "My delivery tends to stay fairly even rather than varied.":"Ma voix reste assez égale, plutôt que variée.",
+      "I put more weight on what I say than on how it sounds.":"J'accorde plus d'importance à ce que je dis qu'à la façon dont ça sonne.",
+      "I'm naturally on the quieter, softly-spoken side.":"Je suis plutôt réservé(e) et je parle doucement.",
+      "My volume tends to ease off towards the end of a sentence.":"Mon volume a tendance à baisser en fin de phrase.",
+      "My natural pace is on the quick side.":"Mon rythme naturel est plutôt rapide.",
+      "I tend to keep momentum going rather than pause much.":"J'ai tendance à rester sur ma lancée plutôt qu'à marquer des pauses.",
+      "I tend to keep some sound going between thoughts rather than leave a gap.":"J'ai tendance à meubler les silences entre deux idées plutôt que de laisser un blanc.",
+      "A silence mid-talk feels like something to fill.":"Un silence en plein milieu me donne envie de le combler.",
+      "I tend to stay quite still and planted when I speak.":"J'ai tendance à rester assez immobile et planté(e) quand je parle.",
+      "I often hold on to the lectern, a clicker, or my notes.":"Je m'accroche souvent au pupitre, à la télécommande ou à mes notes.",
+      "I'm not always sure what to do with my hands up there.":"Je ne sais pas toujours quoi faire de mes mains là-haut.",
+      "I tend to move or shift around while I speak.":"J'ai tendance à bouger ou à me déplacer en parlant.",
+      "My movement isn't always tied to what I'm saying.":"Mes déplacements ne sont pas toujours liés à ce que je dis.",
+      "I like to keep my notes or slides close and refer to them often.":"J'aime garder mes notes ou mes diapositives à portée et m'y référer souvent.",
+      "I find it easier to look at my material than at the audience.":"Il m'est plus facile de regarder mes supports que le public.",
+      "I tend to follow tangents where they take me.":"J'ai tendance à suivre les digressions là où elles me mènent.",
+      "I sometimes carry on past the natural stopping point.":"Il m'arrive de continuer au-delà du moment où j'aurais dû m'arrêter.",
+      "Starting to prepare a talk, I often don't know where to begin.":"Au moment de préparer une intervention, je ne sais souvent pas par où commencer.",
+      "I lean towards including more detail rather than less.":"J'ai tendance à donner plus de détails plutôt que moins.",
+      "I'd rather cover everything than risk leaving something out.":"Je préfère tout aborder plutôt que de risquer d'oublier quelque chose.",
+      "I'm comfortable using the technical vocabulary of my field.":"Je suis à l'aise avec le vocabulaire technique de mon domaine.",
+      "I sometimes forget the audience doesn't share my background.":"J'oublie parfois que le public ne partage pas mon bagage.",
+      "I tend to trust the audience to draw the main point out themselves.":"J'ai tendance à faire confiance au public pour dégager lui-même l'idée principale.",
+      "I don't always spell out a single headline takeaway.":"Je ne formule pas toujours clairement un seul message clé.",
+      "I keep things clear and straightforward rather than reaching for stories or hooks.":"Je vais au plus simple et au plus clair plutôt que de chercher des anecdotes ou des accroches.",
+      "I'm not really one for building in a memorable line or moment.":"Je ne suis pas du genre à glisser une phrase ou un moment mémorable.",
+      "Given the chance, I'd happily talk for longer than the slot allows.":"Si on me laisse faire, je parle volontiers bien plus longtemps que prévu.",
+      "I prefer to hold the floor without being interrupted.":"Je préfère garder la parole sans être interrompu(e).",
+      "I put real effort into keeping a talk lively and entertaining.":"Je fais de vrais efforts pour rendre une intervention vivante et divertissante.",
+      "I'd rather be remembered as engaging than as the most thorough.":"Je préfère qu'on se souvienne de moi comme captivant(e) plutôt que comme le plus complet.",
+      "Once I've set my line, I tend to push through to the end of it.":"Une fois ma ligne fixée, j'ai tendance à la tenir jusqu'au bout.",
+      "I keep to my plan even if the room's energy shifts.":"Je m'en tiens à mon plan même si l'ambiance de la salle change.",
+      "I tend to lighten serious moments with a bit of humour.":"J'ai tendance à alléger les moments sérieux avec un peu d'humour.",
+      "I'm more at ease with a joke than with a sincere pause.":"Je suis plus à l'aise avec une blague qu'avec un silence sincère.",
+      "I focus on getting the content right more than on warmth.":"Je me concentre sur la justesse du contenu plus que sur la chaleur du lien.",
+      "I've been told I come across as polished but a little detached.":"On m'a dit que je paraissais maîtrisé(e) mais un peu distant(e).",
+      "I like to have a talk fully worked out and rehearsed in advance.":"J'aime avoir une intervention entièrement ficelée et répétée à l'avance.",
+      "If things go off my plan, it tends to throw me.":"Si ça s'écarte de mon plan, ça a tendance à me déstabiliser.",
+      "I'm steadier delivering than I am fielding unexpected questions.":"Je suis plus à l'aise pour exposer que pour répondre aux questions imprévues.",
+      "If I'm asked something I didn't prepare for, I can be caught off guard.":"Si on me pose une question que je n'ai pas préparée, je peux être pris(e) au dépourvu."
+    }
+  },
+  es:{
+    prompt:"¿Hasta qué punto es cierto para ti?",
+    back:"Atrás",
+    likert:["Totalmente en desacuerdo","En desacuerdo","Neutral","De acuerdo","Totalmente de acuerdo"],
+    q:{
+      "My body reacts before I speak — a faster heartbeat, unsteady hands.":"Mi cuerpo reacciona antes de hablar: se acelera el corazón, me tiemblan las manos.",
+      "Being the focus of a whole room is something I find hard.":"Ser el centro de atención de toda una sala me resulta difícil.",
+      "An upcoming talk tends to sit on my mind for days.":"Una charla próxima me ronda la cabeza durante días.",
+      "I feel relaxed and at home in front of an audience.":"Me siento relajado(a) y a gusto delante de un público.",
+      "I worry about my mind going blank partway through.":"Me preocupa quedarme en blanco a mitad de la intervención.",
+      "Afterwards, I replay the parts I think I got wrong.":"Después, repaso una y otra vez las partes que creo que hice mal.",
+      "Beforehand, I tend to picture it going wrong more than going well.":"De antemano, tiendo a imaginar que saldrá mal más que bien.",
+      "Once I get going, I find it hard to stop.":"Una vez que arranco, me cuesta parar.",
+      "When nervous, I take up less space and go quieter.":"Cuando estoy nervioso(a), ocupo menos espacio y bajo la voz.",
+      "I'm at ease holding the floor as the main voice.":"Me siento cómodo(a) llevando la voz cantante.",
+      "I'd sooner say a little less than risk saying too much.":"Prefiero quedarme corto(a) que arriesgarme a hablar de más.",
+      "I tend to run a bit over my time.":"Suelo alargarme un poco más de la cuenta.",
+      "In a group, I'm happy to let others do most of the talking.":"En grupo, dejo con gusto que hablen los demás la mayor parte del tiempo.",
+      "While speaking, much of my attention is on how I'm coming across.":"Mientras hablo, gran parte de mi atención está en la impresión que doy.",
+      "I keep a close read on the audience and adjust as I go.":"Observo de cerca al público y me adapto sobre la marcha.",
+      "My nerves tend to pull my attention inward.":"Los nervios tienden a llevar mi atención hacia mí mismo(a).",
+      "I shape a talk around the audience more than around my material.":"Construyo la charla en torno al público más que en torno a mi contenido.",
+      "I can lose track of whether people are still following.":"A veces pierdo de vista si la gente me sigue.",
+      "I pick up quickly from faces when something isn't landing.":"Capto rápido en las caras cuando algo no está calando.",
+      "I like to work a talk out and rehearse it closely beforehand.":"Me gusta preparar y ensayar una charla a fondo de antemano.",
+      "I'm comfortable speaking off the cuff.":"Me siento cómodo(a) improvisando.",
+      "Losing my place tends to rattle me.":"Perder el hilo tiende a descolocarme.",
+      "My talks can wander without a firm structure.":"Mis charlas pueden irse por las ramas sin una estructura clara.",
+      "I rely on my notes or slides to keep me on track.":"Me apoyo en mis notas o diapositivas para no perderme.",
+      "I'm uneasy speaking unless I've mapped out what to say.":"Me incomoda hablar si no he planeado qué voy a decir.",
+      "Under real pressure, my thoughts can empty out and I go quiet.":"Bajo mucha presión, la mente se me queda en blanco y me quedo callado(a).",
+      "There have been times I needed a moment to find my words again.":"Ha habido veces en que necesité un momento para volver a encontrar las palabras.",
+      "I'm quite aware of physical signs of nerves — a warm face, an unsteady hand.":"Soy muy consciente de las señales físicas de los nervios: cara caliente, mano temblorosa.",
+      "I notice my own nervousness more than I notice the audience.":"Noto mis propios nervios más que al público.",
+      "My mouth can go dry or my voice tighten in the first minute.":"Se me puede secar la boca o tensarse la voz en el primer minuto.",
+      "Given the choice, I'd rather keep a talk short and reach the end.":"Si puedo elegir, prefiero hacerlo corto y llegar pronto al final.",
+      "If nerves build, my instinct is to pick up the pace and wrap up.":"Si suben los nervios, mi instinto es acelerar y terminar cuanto antes.",
+      "Even on topics I know well, part of me feels I haven't quite earned the platform.":"Incluso en temas que domino, una parte de mí siente que no me he ganado del todo el lugar.",
+      "I tend to assume others in the room know the subject better than I do.":"Tiendo a suponer que los demás en la sala saben del tema más que yo.",
+      "I measure myself against polished speakers and feel I fall short.":"Me comparo con oradores pulidos y siento que me quedo corto(a).",
+      "Getting the audience to warm to me matters a lot to how I speak.":"Que el público me tome cariño influye mucho en cómo hablo.",
+      "If someone pushes back, I'll usually give ground to keep things comfortable.":"Si alguien me lleva la contraria, suelo ceder para evitar tensiones.",
+      "I often add qualifiers as I go — 'this may be obvious', 'I'm no expert'.":"A menudo añado salvedades: «esto quizá sea obvio», «no soy experto(a)».",
+      "I tend to soften or play down my own points.":"Tiendo a suavizar o restar importancia a mis propios argumentos.",
+      "My delivery tends to stay fairly even rather than varied.":"Mi forma de hablar tiende a ser bastante uniforme en lugar de variada.",
+      "I put more weight on what I say than on how it sounds.":"Doy más peso a lo que digo que a cómo suena.",
+      "I'm naturally on the quieter, softly-spoken side.":"Soy de natural más callado(a), de voz baja.",
+      "My volume tends to ease off towards the end of a sentence.":"Mi volumen tiende a bajar al final de la frase.",
+      "My natural pace is on the quick side.":"Mi ritmo natural es más bien rápido.",
+      "I tend to keep momentum going rather than pause much.":"Tiendo a seguir sin frenar más que a hacer pausas.",
+      "I tend to keep some sound going between thoughts rather than leave a gap.":"Tiendo a llenar los silencios entre ideas en vez de dejar un hueco.",
+      "A silence mid-talk feels like something to fill.":"Un silencio a media charla me da ganas de llenarlo.",
+      "I tend to stay quite still and planted when I speak.":"Tiendo a quedarme bastante quieto(a) y plantado(a) cuando hablo.",
+      "I often hold on to the lectern, a clicker, or my notes.":"A menudo me agarro al atril, al mando o a mis notas.",
+      "I'm not always sure what to do with my hands up there.":"No siempre sé qué hacer con las manos ahí arriba.",
+      "I tend to move or shift around while I speak.":"Tiendo a moverme o desplazarme mientras hablo.",
+      "My movement isn't always tied to what I'm saying.":"Mis movimientos no siempre tienen que ver con lo que digo.",
+      "I like to keep my notes or slides close and refer to them often.":"Me gusta tener cerca mis notas o diapositivas y consultarlas a menudo.",
+      "I find it easier to look at my material than at the audience.":"Me resulta más fácil mirar mi material que al público.",
+      "I tend to follow tangents where they take me.":"Tiendo a seguir las digresiones a donde me lleven.",
+      "I sometimes carry on past the natural stopping point.":"A veces sigo hablando más allá del punto en que debería haber parado.",
+      "Starting to prepare a talk, I often don't know where to begin.":"Al empezar a preparar una charla, muchas veces no sé por dónde empezar.",
+      "I lean towards including more detail rather than less.":"Me inclino por incluir más detalle que menos.",
+      "I'd rather cover everything than risk leaving something out.":"Prefiero abarcarlo todo antes que arriesgarme a dejarme algo.",
+      "I'm comfortable using the technical vocabulary of my field.":"Me siento cómodo(a) usando el vocabulario técnico de mi campo.",
+      "I sometimes forget the audience doesn't share my background.":"A veces olvido que el público no comparte mis conocimientos previos.",
+      "I tend to trust the audience to draw the main point out themselves.":"Tiendo a confiar en que el público extraiga por sí mismo la idea principal.",
+      "I don't always spell out a single headline takeaway.":"No siempre dejo claro un único mensaje central.",
+      "I keep things clear and straightforward rather than reaching for stories or hooks.":"Soy claro(a) y directo(a) en lugar de buscar historias o ganchos.",
+      "I'm not really one for building in a memorable line or moment.":"No suelo incluir una frase o un momento memorable.",
+      "Given the chance, I'd happily talk for longer than the slot allows.":"Si me dejaran, hablaría con gusto más tiempo del previsto.",
+      "I prefer to hold the floor without being interrupted.":"Prefiero seguir con la palabra sin que me interrumpan.",
+      "I put real effort into keeping a talk lively and entertaining.":"Me esfuerzo de verdad por hacer una charla amena y entretenida.",
+      "I'd rather be remembered as engaging than as the most thorough.":"Prefiero que me recuerden como ameno(a) más que como exhaustivo(a).",
+      "Once I've set my line, I tend to push through to the end of it.":"Una vez fijada mi línea, tiendo a llevarla hasta el final.",
+      "I keep to my plan even if the room's energy shifts.":"Me ciño a mi plan aunque cambie el ambiente de la sala.",
+      "I tend to lighten serious moments with a bit of humour.":"Tiendo a aligerar los momentos serios con algo de humor.",
+      "I'm more at ease with a joke than with a sincere pause.":"Estoy más cómodo(a) con una broma que con un silencio sincero.",
+      "I focus on getting the content right more than on warmth.":"Me centro en acertar con el contenido más que en la cercanía.",
+      "I've been told I come across as polished but a little detached.":"Me han dicho que parezco pulido(a) pero un poco distante.",
+      "I like to have a talk fully worked out and rehearsed in advance.":"Me gusta tener una charla totalmente cerrada y ensayada de antemano.",
+      "If things go off my plan, it tends to throw me.":"Si las cosas se salen de mi plan, tiende a descolocarme.",
+      "I'm steadier delivering than I am fielding unexpected questions.":"Soy más sólido(a) exponiendo que respondiendo a preguntas imprevistas.",
+      "If I'm asked something I didn't prepare for, I can be caught off guard.":"Si me preguntan algo que no preparé, pueden tomarme desprevenido(a)."
+    }
+  }
+};
+const byId = Object.fromEntries(PROFILES.map(p=>[p.id,p]));
+const CENTRE = [28,50,75,50];
+
+/* ---------- STATE ---------- */
+let idx = 0;
+let LANG = 'en';
+const answers = new Array(Q.length).fill(null);
+const LIKERT = ["Strongly disagree","Disagree","Neutral","Agree","Strongly agree"];
+const $ = id => document.getElementById(id);
+const TOTAL = Q.length;
+$("qcur").parentElement.innerHTML = 'Q<b id="qcur">1</b> / '+TOTAL;
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}}
+function show(sec){ ["intro","quiz","result"].forEach(s=>$(s).classList.toggle("hidden", s!==sec)); window.scrollTo(0,0); }
+
+function renderQ(){
+  const q = Q[idx];
+  $("qcur").textContent = idx+1;
+  $("fill").style.width = (idx/TOTAL*100)+"%";
+  const tr = (LANG!=='en' && TR[LANG]) ? TR[LANG] : null;
+  $("qsec").textContent = tr ? tr.prompt : "How true is this for you?";
+  $("qtext").textContent = q.t;
+  const qt = $("qtrans");
+  if(tr && tr.q[q.t]){ qt.textContent = tr.q[q.t]; qt.classList.remove("hidden"); }
+  else { qt.textContent = ""; qt.classList.add("hidden"); }
+  $("back").textContent = tr ? ("← " + tr.back) : "← Back";
+  $("back").disabled = idx===0;
+  const labels = tr ? tr.likert : LIKERT;
+  const box = $("likert"); box.innerHTML = "";
+  labels.forEach((label,i)=>{
+    const val=i+1;
+    const b=document.createElement("button");
+    b.className="opt"+(answers[idx]===val?" sel":"");
+    b.innerHTML=`<span class="dot"></span><span>${label}</span>`;
+    b.onclick=()=>{ answers[idx]=val; next(); };
+    box.appendChild(b);
+  });
+}
+function next(){ if(idx<TOTAL-1){ idx++; renderQ(); } else { $("fill").style.width="100%"; setTimeout(finish,220); } }
+function back(){ if(idx>0){ idx--; renderQ(); } }
+
+let _uid=0;
+function shade(hex,p){const n=parseInt(hex.slice(1),16);let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const f=t=>Math.max(0,Math.min(255,Math.round(t+p/100*255)));return '#'+((f(r)<<16)|(f(g)<<8)|f(b)).toString(16).padStart(6,'0');}
+function _hash(s){s=String(s||'x');let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function frontHair(style,hair){
+  switch(style){
+    case 0: return `<path d="M70 96 C68 64 132 64 130 96 C128 81 116 75 100 79 C84 75 72 81 70 96 Z" fill="${hair}"/>`;
+    case 1: return `<path d="M70 96 C68 64 132 64 130 96 C127 80 110 73 95 82 C88 77 74 80 70 96 Z" fill="${hair}"/>`;
+    case 2: return `<path d="M72 92 C72 67 128 67 128 92 C124 80 114 76 100 78 C86 76 76 80 72 92 Z" fill="${hair}"/>`;
+    case 3: return `<path d="M70 96 C68 64 132 64 130 96 C128 81 116 75 100 79 C84 75 72 81 70 96 Z" fill="${hair}"/>`;
+    default: return `<path d="M73 94 C73 70 127 70 127 94 C125 84 115 80 100 81 C86 80 75 84 73 94 Z" fill="${hair}"/>`;
+  }
+}
+function expr(e,ink,skinD){
+  const lx=89,rx=111,ey=93,my=112;
+  const brow=(x,dy,a)=>`<path d="M${x-7} ${78+dy+a} Q${x} ${74+dy} ${x+7} ${78+dy-a}" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const almond=x=>`<ellipse cx="${x}" cy="${ey}" rx="3.6" ry="4.7" fill="${ink}"/><circle cx="${x+1.2}" cy="${ey-1.7}" r="1.1" fill="#fff"/>`;
+  const wide=x=>`<circle cx="${x}" cy="${ey}" r="5.2" fill="#fff" stroke="${ink}" stroke-width="1.4"/><circle cx="${x}" cy="${ey+.4}" r="2.7" fill="${ink}"/>`;
+  const linEye=x=>`<path d="M${x-5} ${ey} h10" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/>`;
+  const nose=`<path d="M100 99 q3.5 5 -1 8" stroke="${skinD}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  let eyes,mouth,brows;
+  switch(e){
+    case 'flat': brows=brow(lx,0,0)+brow(rx,0,0); eyes=linEye(lx)+linEye(rx); mouth=`<path d="M91 ${my+2} h18" stroke="${ink}" stroke-width="3" stroke-linecap="round"/>`; break;
+    case 'worried': brows=brow(lx,-2,3)+brow(rx,-2,-3); eyes=almond(lx)+almond(rx); mouth=`<path d="M91 ${my+5} Q100 ${my} 109 ${my+5}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    case 'shock': brows=brow(lx,-4,0)+brow(rx,-4,0); eyes=wide(lx)+wide(rx); mouth=`<ellipse cx="100" cy="${my+3}" rx="5.4" ry="6.8" fill="${ink}"/>`; break;
+    case 'talk': brows=brow(lx,0,0)+brow(rx,0,0); eyes=almond(lx)+almond(rx); mouth=`<ellipse cx="100" cy="${my+2}" rx="6.4" ry="5.4" fill="${ink}"/><path d="M95 ${my+3.5} h10" stroke="#fff" stroke-width="1.3" opacity=".55"/>`; break;
+    case 'grin': brows=brow(lx,1,0)+brow(rx,1,0); eyes=almond(lx)+almond(rx); mouth=`<path d="M88 ${my-1} Q100 ${my+13} 112 ${my-1} Q100 ${my+4} 88 ${my-1} Z" fill="${ink}"/>`; break;
+    case 'wink': brows=brow(lx,0,0)+brow(rx,1,0); eyes=almond(lx)+`<path d="M${rx-5} ${ey+1} q5 4 10 -1" stroke="${ink}" stroke-width="2.8" fill="none" stroke-linecap="round"/>`; mouth=`<path d="M90 ${my} Q100 ${my+11} 110 ${my}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    case 'frown': brows=brow(lx,-1,-4)+brow(rx,-1,4); eyes=almond(lx)+almond(rx); mouth=`<path d="M91 ${my+5} Q100 ${my-2} 109 ${my+5}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`; break;
+    default: brows=brow(lx,0,0)+brow(rx,0,0); eyes=almond(lx)+almond(rx); mouth=`<path d="M92 ${my+1} Q100 ${my+8} 108 ${my+1}" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  }
+  return brows+eyes+nose+mouth;
+}
+function avatar(color,pose,exp,seed){
+  const id="a"+(++_uid), h=_hash(seed||(pose+exp));
+  const SKIN=['#F4D8C0','#EFC9A8','#DCA982','#B6835A','#8C5E3C'];
+  const HAIR=['#2B2A33','#4A3526','#6E4A2C','#A07A47','#CDB079','#8E9099'];
+  const skin=SKIN[h%SKIN.length], skinD=shade(skin,-16);
+  const hair=HAIR[(h>>3)%HAIR.length];
+  const style=(h>>6)%5;
+  const cloth=color, clothD=shade(color,-18), ink="#2C2433";
+
+  let hairBack='';
+  if(style===3){ hairBack=`<ellipse cx="71" cy="116" rx="11" ry="29" fill="${hair}"/><ellipse cx="129" cy="116" rx="11" ry="29" fill="${hair}"/>`; }
+  hairBack += `<ellipse cx="100" cy="92" rx="34" ry="${style===4?33:36}" fill="${hair}"/>`;
+
+  let mic='',hand='',papers='',deco='',tilt=0;
+  const micG=`<g transform="rotate(-20 124 116)"><rect x="120" y="108" width="8.5" height="34" rx="4.2" fill="#39323F"/><ellipse cx="124.2" cy="106" rx="9.5" ry="10.5" fill="#574F63"/><ellipse cx="124.2" cy="106" rx="6" ry="7" fill="#7C7589"/><path d="M120 104 h8 M120 108 h8" stroke="#39323F" stroke-width="1"/></g>`;
+  switch(pose){
+    case 'big': hand=`<path d="M150 200 C150 168 156 150 163 139" stroke="${cloth}" stroke-width="16" fill="none" stroke-linecap="round"/><circle cx="165" cy="133" r="10" fill="${skin}"/>`; mic=micG; break;
+    case 'point': hand=`<path d="M152 200 C152 172 158 154 167 148" stroke="${cloth}" stroke-width="16" fill="none" stroke-linecap="round"/><circle cx="170" cy="146" r="9" fill="${skin}"/><rect x="167" y="122" width="5" height="22" rx="2.5" fill="${skin}"/>`; break;
+    case 'read': papers=`<g transform="rotate(-3 100 170)"><rect x="58" y="148" width="84" height="52" rx="5" fill="#F7F3EA" stroke="${clothD}" stroke-width="2.5"/><rect x="69" y="160" width="62" height="4" rx="2" fill="${shade(color,-4)}"/><rect x="69" y="172" width="52" height="4" rx="2" fill="${shade(color,-4)}"/><rect x="69" y="184" width="46" height="4" rx="2" fill="${shade(color,-4)}"/></g>`; break;
+    case 'overprep': deco=`<g><rect x="18" y="42" width="27" height="35" rx="3" fill="#F7F3EA" stroke="${clothD}" stroke-width="2" transform="rotate(-15 31 59)"/><rect x="156" y="48" width="27" height="35" rx="3" fill="#F7F3EA" stroke="${clothD}" stroke-width="2" transform="rotate(14 169 65)"/></g>`; break;
+    case 'shake': deco=`<path d="M40 84 q-6 8 0 16 M160 84 q6 8 0 16" stroke="${cloth}" stroke-width="3" fill="none" opacity=".7"/>`; break;
+    case 'fast': deco=`<rect x="12" y="92" width="28" height="4" rx="2" fill="${cloth}" opacity=".6"/><rect x="8" y="104" width="34" height="4" rx="2" fill="${cloth}" opacity=".4"/>`; mic=micG; break;
+    case 'flee': deco=`<rect x="10" y="98" width="30" height="4" rx="2" fill="${cloth}" opacity=".55"/><rect x="6" y="110" width="36" height="4" rx="2" fill="${cloth}" opacity=".38"/>`; tilt=-6; break;
+    case 'fidget': deco=`<path d="M152 150 q9 4 4 13 M44 158 q-9 4 -4 13" stroke="${cloth}" stroke-width="2.5" fill="none" opacity=".5"/>`; break;
+    case 'wander': deco=`<text x="150" y="72" font-family="Fraunces, Georgia, serif" font-size="36" font-weight="600" fill="${cloth}">?</text>`; tilt=4; break;
+    case 'joke': deco=`<path d="M152 56 l3.6 8.2 8.8 1 -6.2 6.2 1.6 8.8 -7.8 -4.2 -7.8 4.2 1.6 -8.8 -6.2 -6.2 8.8 -1 z" fill="${cloth}"/>`; tilt=5; break;
+  }
+  if(pose==='freeze'||pose==='shake'||exp==='shock'){ deco+=`<path d="M133 84 q4.2 7 0 11.5 q-4.2 -4.5 0 -11.5" fill="#86B4E6"/>`; }
+
+  const blush=`<ellipse cx="82" cy="106" rx="6" ry="3.5" fill="${shade(color,30)}" opacity=".45"/><ellipse cx="118" cy="106" rx="6" ry="3.5" fill="${shade(color,30)}" opacity=".45"/>`;
+
+  const headG=`<g transform="rotate(${tilt} 100 98)">
+    <ellipse cx="70" cy="101" rx="6" ry="9" fill="${skin}"/><ellipse cx="130" cy="101" rx="6" ry="9" fill="${skin}"/>
+    ${hairBack}
+    <ellipse cx="100" cy="98" rx="30" ry="32" fill="${skin}"/>
+    ${blush}
+    ${style===2?`<circle cx="100" cy="57" r="11" fill="${hair}"/>`:''}
+    ${frontHair(style,hair)}
+    ${expr(exp,ink,skinD)}
+  </g>`;
+
+  const body=`<path d="M50 200 C50 156 66 147 100 147 C134 147 150 156 150 200 Z" fill="${cloth}"/>
+    <path d="M81 150 Q100 167 119 150" stroke="${clothD}" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M91 127 Q91 144 100 146 Q109 144 109 127 Z" fill="${skin}"/>
+    <ellipse cx="100" cy="129" rx="11" ry="4" fill="${skinD}" opacity=".5"/>`;
+
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="speaker character">
+    <defs><clipPath id="${id}"><circle cx="100" cy="100" r="95"/></clipPath>
+      <radialGradient id="g${id}" cx="50%" cy="16%" r="78%"><stop offset="0%" stop-color="#fff" stop-opacity=".12"/><stop offset="62%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+    <circle cx="100" cy="100" r="95" fill="${color}" fill-opacity=".13"/>
+    <g clip-path="url(#${id})">
+      <rect x="0" y="0" width="200" height="200" fill="url(#g${id})"/>
+      ${deco}
+      <g ${pose==='shrink'?'transform="translate(18 24) scale(.79)"':''}>${body}${headG}${papers}${hand}</g>
+      ${mic}
+    </g>
+    <circle cx="100" cy="100" r="93.5" fill="none" stroke="${color}" stroke-width="3"/>
+  </svg>`;
+}
+
+const META={
+ escaper:['#6B8CCF','flee','worried'], freezer:['#6B8CCF','freeze','shock'], shaker:['#6B8CCF','shake','worried'], apologiser:['#6B8CCF','shrink','worried'],
+ impostor:['#A07CD0','shrink','worried'], overcompensator:['#A07CD0','overprep','worried'],
+ monotone:['#4FB6A6','flat','flat'], mumbler:['#4FB6A6','shrink','worried'], speedtalker:['#4FB6A6','fast','talk'], filler:['#4FB6A6','fidget','talk'], statue:['#4FB6A6','freeze','flat'], pacer:['#4FB6A6','fidget','neutral'], reader:['#4FB6A6','read','neutral'],
+ rambler:['#E9B85C','wander','talk'], datadumper:['#E9B85C','read','talk'], burier:['#E9B85C','wander','neutral'], jargon:['#E9B85C','point','talk'], forgettable:['#E9B85C','flat','neutral'],
+ windbag:['#E07A6B','big','talk'], showman:['#E07A6B','big','grin'], bulldozer:['#E07A6B','point','talk'], joker:['#E07A6B','joke','wink'],
+ robot:['#D98AB0','flat','flat'], pleaser:['#D98AB0','shrink','grin'], defensive:['#D98AB0','point','frown']
+};
+function charFor(id){ const m=META[id]; return m?avatar(m[0],m[1],m[2],id):""; }
+
+function compute(){
+  const dimSum={A:[0,0],P:[0,0],F:[0,0],C:[0,0]};
+  const tellSum={};
+  Q.forEach((q,i)=>{
+    const r = answers[i]==null?3:answers[i];
+    if(q.type==="dim"){ let v=r; if(q.dir<0)v=6-r; dimSum[q.d][0]+=v; dimSum[q.d][1]++; }
+    else { if(!tellSum[q.p])tellSum[q.p]=[0,0]; tellSum[q.p][0]+=r; tellSum[q.p][1]++; }
+  });
+  const dim={};
+  for(const k in dimSum){ const m=dimSum[k][0]/dimSum[k][1]; dim[k]=Math.round((m-1)/4*100); }
+  const v=[dim.A,dim.P,dim.F,dim.C];
+  const scored=PROFILES.map(p=>{
+    let d=0; for(let i=0;i<4;i++){const x=v[i]-p.sig[i];d+=x*x;}
+    const sigMatch=100-(Math.sqrt(d)/200*100);
+    let tell=50;
+    if(tellSum[p.id]){ const m=tellSum[p.id][0]/tellSum[p.id][1]; tell=(m-1)/4*100; }
+    const scoreVal=0.6*tell+0.4*sigMatch;
+    return {p, scoreVal, tell};
+  });
+  scored.sort((a,b)=>b.scoreVal-a.scoreVal);
+  return {dim, scored};
+}
+
+function meterRow(k,val){
+  const d=DIMS[k];
+  const z = k==="A"?[0,38] : k==="F"?[55,100] : [35,68];
+  return `<div class="row">
+    <div class="row-top"><span>${d.lo}</span><span class="row-name">${d.name}</span><span>${d.hi}</span></div>
+    <div class="bar">
+      <div class="zone" style="left:${z[0]}%;width:${z[1]-z[0]}%"></div>
+      <div class="lead" data-w="${val}" style="width:0%"></div>
+      <div class="pip" data-l="${val}" style="left:0%"></div>
+    </div></div>`;
+}
+
+function finish(){
+  const {dim, scored} = compute();
+  const primary=scored[0].p, secondary=scored[1].p;
+  show("result");
+
+  $("rAvatar").innerHTML=charFor(primary.p?primary.p.id:primary.id); $("rName").textContent=primary.name;
+  $("rTag").textContent=primary.tag;
+  $("rDrive").textContent=primary.drive;
+  $("rPortrait").textContent=primary.portrait;
+  $("rCue").textContent=primary.cue;
+  $("rTravels").innerHTML=primary.with.map(w=>`<span class="chip">${w}</span>`).join("");
+
+  $("sName").textContent=secondary.name;
+  $("sTag").textContent=secondary.tag;
+  $("sDrive").textContent=secondary.drive;
+  $("sCue").textContent=secondary.cue;
+
+  // ranked top 4
+  const top=scored.slice(0,4);
+  const max=top[0].scoreVal||1;
+  $("rankRows").innerHTML=top.map((s,i)=>{
+    const pct=Math.round(s.scoreVal);
+    const w=Math.round(s.scoreVal/max*100);
+    return `<div class="rrow is${i+1<=2?i+1:0}">
+      <span class="rn">${s.p.name}</span>
+      <span class="rtrack"><span class="rfill" data-w="${w}" style="width:0%"></span></span>
+      <span class="rpct">${pct}%</span></div>`;
+  }).join("");
+
+  // balance note when no profile is strongly endorsed
+  const bb=$("balanceBox");
+  if(scored[0].tell<=55 && (scored[0].scoreVal-scored[1].scoreVal)<5){
+    bb.innerHTML=`<div class="balance">No single profile dominates — you're close to a <b>balanced baseline</b>. The two below are simply your <b>leans under pressure</b>: the directions you'd tip if a talk started to slip. Worth knowing before it does.</div>`;
+  } else { bb.innerHTML=""; }
+
+  // meter
+  $("meterRows").innerHTML=["A","P","F","C"].map(k=>meterRow(k,dim[k])).join("");
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll(".pip").forEach(el=>el.style.left=el.dataset.l+"%");
+    document.querySelectorAll(".lead").forEach(el=>el.style.width=el.dataset.w+"%");
+    document.querySelectorAll(".rfill").forEach(el=>el.style.width=el.dataset.w+"%");
+  }));
+
+  window._result={primary:primary.name,secondary:secondary.name,dim};
+}
+
+$("start").onclick=()=>{ const lv=$("lang").value; LANG=(lv==='fr'||lv==='es')?lv:'en'; shuffle(Q); answers.fill(null); idx=0; show("quiz"); renderQ(); };
+$("back").onclick=back;
+$("retake").onclick=()=>{ idx=0; answers.fill(null); show("intro"); };
+$("share").onclick=()=>{
+  const r=window._result, d=r.dim;
+  const txt=`My speaker profile: ${r.primary} (with a secondary lean towards ${r.secondary}).\nApprehension ${d.A} · Presence ${d.P} · Focus ${d.F} · Preparation ${d.C}\nFind yours with the Speaker Profile Assessment.`;
+  const done=()=>{ $("toast").textContent="Copied to clipboard ✓"; setTimeout(()=>$("toast").textContent="",2600); };
+  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(done); } else { done(); }
+};
+/* ---- email capture (replace LEAD_ENDPOINT with your own form endpoint) ---- */
+const LEAD_ENDPOINT = "https://formspree.io/f/REPLACE_WITH_YOUR_FORM_ID";
+$("leadSend").onclick=()=>{
+  const name=$("leadName").value.trim(), email=$("leadEmail").value.trim(), consent=$("leadConsent").checked, msg=$("leadMsg");
+  if(!name||!email){ msg.style.color="var(--rose)"; msg.textContent="Please add your name and email."; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg.style.color="var(--rose)"; msg.textContent="That email address doesn't look right."; return; }
+  if(!consent){ msg.style.color="var(--rose)"; msg.textContent="Please tick the box so we can email you."; return; }
+  const r=window._result||{}, fd=new FormData();
+  fd.append("name",name); fd.append("email",email);
+  fd.append("primary_profile", r.primary||""); fd.append("secondary_profile", r.secondary||"");
+  if(r.dim) fd.append("scores", "Apprehension "+r.dim.A+" / Presence "+r.dim.P+" / Focus "+r.dim.F+" / Preparation "+r.dim.C);
+  fd.append("_subject","New Speaker Profile result");
+  msg.style.color="var(--on-paper-soft)"; msg.textContent="Sending\u2026";
+  fetch(LEAD_ENDPOINT,{method:"POST",body:fd,headers:{Accept:"application/json"}})
+    .then(res=>{ if(!res.ok) throw new Error(); msg.style.color="var(--gold-dim)"; msg.textContent="Thanks \u2014 your results are on their way."; $("leadSend").disabled=true; $("leadName").disabled=true; $("leadEmail").disabled=true; })
+    .catch(()=>{ msg.style.color="var(--rose)"; msg.textContent="Something went wrong \u2014 please try again in a moment."; });
+};
+
+document.addEventListener("keydown",e=>{
+  if($("quiz").classList.contains("hidden"))return;
+  if(e.key>="1"&&e.key<="5"){ answers[idx]=+e.key; next(); }
+  else if(e.key==="ArrowLeft"){ back(); }
+});
+</script>
+</body>
+</html>
