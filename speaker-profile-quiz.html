@@ -169,7 +169,7 @@
   .phonegroup select{flex:0 0 auto;max-width:48%;padding:13px 12px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;cursor:pointer;}
   .phonegroup input{flex:1;min-width:0;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
   .phonegroup select:focus-visible,.phonegroup input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
-  .topshare{text-align:center;margin:2px 0 26px;}
+  .topshare{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:2px 0 26px;}
   .homework ul{margin:8px 0 0;padding-left:20px;}
   .homework li{margin:7px 0;color:var(--on-paper-soft);line-height:1.5;}
   .hidden{display:none !important;}
@@ -263,7 +263,7 @@
         <div class="spot-tag" id="rTag"></div>
       </div>
 
-      <div class="topshare"><button class="btn" id="shareTop">Share on WhatsApp →</button></div>
+      <div class="topshare"><button class="btn" id="shareTop">Share on WhatsApp</button><button class="btn ghost" id="shareLI">Share on LinkedIn</button></div>
 
       <div id="balanceBox"></div>
 
@@ -1004,7 +1004,8 @@ function doShare(){
   const wa="https://wa.me/?text="+encodeURIComponent(msg+"\n"+url);
   window.open(wa,"_blank");
 }
-$("share").onclick=doShare; if($("shareTop")) $("shareTop").onclick=doShare;
+function doShareLI(){ const r=window._result||{}; const url="https://aristotl.es/share/"+(r.pid||"")+".html"; window.open("https://www.linkedin.com/sharing/share-offsite/?url="+encodeURIComponent(url),"_blank"); }
+$("share").onclick=doShare; if($("shareTop")) $("shareTop").onclick=doShare; if($("shareLI")) $("shareLI").onclick=doShareLI;
 /* ---- ratings + Supabase capture ---- */
 const SUPABASE_URL = "https://dmpghqztbluxarprzeae.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcGdocXp0Ymx1eGFycHJ6ZWFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTQ1OTEsImV4cCI6MjA5ODQ3MDU5MX0.8UhaPHnIzGraJA_CwY22EisVsFdF82y6J5Uh1l1lP2Q";
