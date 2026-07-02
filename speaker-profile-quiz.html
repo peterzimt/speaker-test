@@ -169,6 +169,8 @@
   .phonegroup select{flex:0 0 auto;max-width:48%;padding:13px 12px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;cursor:pointer;}
   .phonegroup input{flex:1;min-width:0;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
   .phonegroup select:focus-visible,.phonegroup input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
+  .homework ul{margin:8px 0 0;padding-left:20px;}
+  .homework li{margin:7px 0;color:var(--on-paper-soft);line-height:1.5;}
   .hidden{display:none !important;}
   @media (prefers-reduced-motion: reduce){*{transition:none !important;}}
 </style>
@@ -284,6 +286,18 @@
         <div class="travels" id="rTravels"></div>
       </div>
 
+      <div class="card deep" id="deepCard">
+        <p class="kicker">Tell me more about your profile</p>
+        <h3>Who you are</h3>
+        <p id="dWho"></p>
+        <h3>Why it happens to you</h3>
+        <p id="dWhy"></p>
+        <h3>What to work on to shed it</h3>
+        <p id="dRemove"></p>
+        <h3>Homework you can start now</h3>
+        <div id="dHome" class="homework"></div>
+      </div>
+
       <div class="card sec" id="secCard">
         <p class="kicker">Your secondary lean</p>
         <h2 class="secname" id="sName">—</h2>
@@ -299,7 +313,7 @@
       </div>
 
       <div class="actions">
-        <button class="btn" id="share">Copy my result</button>
+        <button class="btn" id="share">Share my result</button>
         <a class="btn ghost" href="./">Explore all profiles →</a>
         <button class="btn ghost" id="retake">Retake</button>
       </div>
@@ -889,11 +903,38 @@ function compute(){
   return {dim, scored};
 }
 
+const DEEP = {
+escaper:{who:"You feel the room the moment you stand up, and some part of you is already looking for the door. You'd rather cut it short and be safe than stay in the discomfort and finish.",why:"Rushing to the end is your fight-or-flight system choosing flight. Finishing early drops the anxiety instantly, which is exactly why the habit sticks — your brain never gets to learn that staying wouldn't have hurt you.",remove:"You beat it by staying in and finishing the full time, every time, with the escape route removed. The fear only recalibrates when you prove to yourself the catastrophe doesn't come.",homework:["Give a 3-minute talk to your phone and use the full 3 minutes, no matter what.","Mark three points where you must stop and hold a 2-second pause.","Before you start, relabel the buzz: 'this is readiness, not dread.'"]},
+freezer:{who:"You prepare, you know your stuff — and then, under the spotlight, your mind can go blank and the words vanish.",why:"The blank isn't a lack of knowledge; it's working-memory overload. A spike of adrenaline floods your mental workspace and retrieval stalls. It feels like failure but it's just an overloaded system.",remove:"Two moves fix it: over-learn your opening until it runs on autopilot (so it costs no mental effort), and rehearse a recovery routine so a blank becomes a pause you calmly walk out of.",homework:["Rehearse your first 30 seconds until you could say it half-asleep.","Drill the recovery: pause, breathe, glance at one keyword, continue.","Deliberately pause for 3 full seconds mid-talk and carry on — prove a gap isn't a collapse."]},
+shaker:{who:"Your nerves show up in your body — shaking hands, a trembling voice, a thumping heart — and you're sure everyone can see it.",why:"Adrenaline arrives to help you and, with nowhere to go, lands in your hands and voice. Then the 'illusion of transparency' convinces you it's far more visible than it actually is.",remove:"Give the adrenaline an outlet before and during (breath, movement, purposeful gestures) and reframe the buzz as fuel. The shake fades by minute two once it has somewhere to go.",homework:["Do a physiological sigh (double inhale, long exhale) three times before speaking.","Give your hands a job — hold a clicker or use deliberate gestures.","Speak holding a single sheet of paper and watch it steady as you go."]},
+apologiser:{who:"You soften everything before you've even said it — 'sorry, this is probably obvious', 'I'm no expert' — and end up talking yourself down in front of the room.",why:"Pre-apologising is a safety behaviour: if you lower expectations first, any judgement lands softer. But it signals low status and invites the very dismissal you're bracing for.",remove:"Cut the qualifiers and state your point as a plain claim. Then watch what happens — the room doesn't punish it. That evidence is what dissolves the habit.",homework:["Count every 'sorry / just / probably' in a recording, then redo it at zero.","Replace each hedge with a plain statement of the point.","Deliver one 2-minute point with no qualifier of any kind."]},
+impostor:{who:"Even on topics you genuinely know, a voice says you haven't really earned the right to be up there — and you're waiting to be found out.",why:"This is the impostor phenomenon: you discount your own evidence and attribute your competence to luck. It keeps your attention on your own adequacy instead of on the people you're there to help.",remove:"Shift the goal from 'prove I'm worthy' (unwinnable) to 'give this room one useful thing' (doable). Build a short evidence file that competes with the self-doubt, and cut the hedges that leak it.",homework:["Write three concrete reasons you're qualified; read them before you speak.","Frame every talk as teaching one useful thing.","State one opinion as a claim — 'I think X, and here's why' — with no softening."]},
+overcompensator:{who:"You over-prepare, script every word, and rehearse until it's airtight — and then a single deviation can rattle you completely.",why:"Total control is a safety behaviour against the fear of being exposed. But rigidity actually raises the mental load and makes you brittle: with no room to breathe, any surprise feels like danger.",remove:"Train your tolerance for improvisation in small, safe doses. Move from full scripts to keywords, and deliberately leave one section unplanned so 'off-script' stops feeling like a threat.",homework:["Reduce one talk's notes to keywords only.","Speak for 60 seconds on a familiar topic with no notes, daily.","Plan a talk with one deliberately unscripted stretch."]},
+monotone:{who:"Your content is solid, but your voice stays flat — the pitch never really moves, so the emphasis and energy go missing.",why:"When all your attention is on the words, none is left for the melody, so pitch defaults to a flat line. It's a motor habit running below your awareness, not a lack of feeling.",remove:"Retrain pitch as a deliberate choice. Mark the one word per sentence that carries the meaning and let your voice lift on it — exaggerate first, then settle into the middle.",homework:["Underline the key word in each sentence and lift your pitch on it.","Read a passage once flat, once 'too much', then find the middle.","Tell a 2-minute story you care about and let feeling move your voice."]},
+mumbler:{who:"People lean in and still ask you to repeat things — your volume drops and your words lose their edges.",why:"Under-projecting is partly habit and partly a quiet way of taking up less space. Soft articulation compounds it, so the message arrives blurred.",remove:"Learn to project from the breath and sharpen your consonants. Aim your voice at the back wall, not the front row.",homework:["Read aloud with a pen between your teeth, then without — feel the articulation.","Aim every sentence at the farthest point in the room.","Practise so the person farthest away could repeat your last line."]},
+speedtalker:{who:"You race. The ideas are good but they arrive faster than anyone can catch, and you're at the end before they've settled into the middle.",why:"Speed shortens your exposure — it's a subtle escape — and it outruns the audience's ability to process. The faster you feel, the faster you go.",remove:"Install pauses as structure, not decoration. A full stop and a breath at every transition does more than any 'slow down' ever will.",homework:["Stop and breathe at every transition between points.","Rehearse a passage at a deliberately slow pace.","Deliver the same content in more time than usual — add pauses, not words."]},
+filler:{who:"Um, uh, like, you know — the space between your thoughts keeps getting plugged with sound.",why:"Fillers exist because silence feels unbearable, so you fill it. It's a low tolerance for the gap, not a lack of vocabulary.",remove:"Build tolerance for silence. When an 'um' is coming, close your mouth and let a deliberate beat sit there instead. The gap is where the audience catches up.",homework:["Count your fillers in a recording — awareness alone cuts them.","When you feel an 'um' arriving, close your mouth and pause.","Speak for 2 minutes letting every gap be silent."]},
+statue:{who:"You lock up when you speak — planted, stiff, hands unsure what to do — as if moving might give something away.",why:"Freezing the body feels safe, but stillness is a default rather than a choice, and it reads to the room as braced or tense.",remove:"Give the body an intentional job. Assign one deliberate gesture to each point and open your posture, so movement supports the words instead of fighting them.",homework:["Assign one deliberate hand gesture to each main point.","Unlock your arms and stand with even weight.","Rehearse three anchored positions you can move between."]},
+pacer:{who:"You move a lot when you speak, but the movement wanders — pacing that isn't tied to anything you're saying.",why:"Aimless motion is your nerves discharging. It relieves the tension but reads to the audience as restlessness rather than intent.",remove:"Make movement mean something. Plant for whole points and move only when the topic changes — motion becomes a signal, not a symptom.",homework:["Stand still and deliver whole points without moving.","Step only on transitions, then plant again.","Map the stage into three purposeful spots."]},
+reader:{who:"Your eyes live on your notes or slides, and the audience mostly gets the top of your head.",why:"The script is a safety blanket — eyes down means less exposure. But it costs you the connection that eye contact creates.",remove:"Strip your notes to keywords and learn to look up to speak: eyes down to find the point, up to say it. Memorise the open and close so you bookend without paper.",homework:["Convert one script into keyword notes only.","Practise looking down to find a point, then up to deliver it.","Deliver one whole section looking only at people."]},
+rambler:{who:"You set off with good material and follow it wherever it leads — and somewhere along the way the thread gets lost.",why:"Without a retrieval structure of your own, you chase tangents, and without signposts the audience's memory can't hold your talk together.",remove:"Impose a simple spine — three points, clearly signposted — and hold the one-message rule: if it doesn't serve the message, it goes.",homework:["Build every talk on three labelled points.","Signpost out loud: 'first… second… finally.'","Give a talk a listener can summarise in one sentence afterwards."]},
+datadumper:{who:"You give people everything — every fact, caveat, and detail — and the sheer volume buries what matters.",why:"This is the curse of knowledge plus a feeling that 'more is safer than choosing.' You can't un-know your detail, so you include all of it and overwhelm the room.",remove:"Choose ruthlessly. Three points, and a 'so what?' test on every fact — if it doesn't earn its place, cut it, even the parts you love.",homework:["Cut a talk down to three points.","Run every fact through 'so what?' — remove the ones that fail.","Halve your content and deliver the same talk."]},
+burier:{who:"Your point is in there — it's just at the bottom, after all the build-up, by which time attention has drifted.",why:"You build toward the conclusion instead of leading with it, so the headline arrives after the room has already started to tune out.",remove:"Put the bottom line up front. Write your one-sentence takeaway first, then arrange everything else to support it.",homework:["Write the single sentence you want remembered, before anything else.","Open your next talk with that exact sentence.","Practise 'headline first' on every message this week."]},
+jargon:{who:"You speak the language of your field fluently — and the room quietly glazes over as the acronyms pile up.",why:"The curse of knowledge in its purest form: you've forgotten what it's like not to know your material, so you talk past the people in front of you.",remove:"Translate everything as if explaining to a bright teenager. Define each term once or cut it, and run a plain-language pass over your whole talk.",homework:["Explain each key idea as if to someone outside your field.","Define or delete every acronym.","Test it on a non-expert and check they got the main point."]},
+forgettable:{who:"You're competent and clear — nothing goes wrong — but afterwards, nothing much sticks.",why:"There's no hook for memory to grab: no vivid image, story, or line that gives the audience a handle to carry away.",remove:"Plant one memorable thing on purpose — an image, a number, a story — and end on a deliberate closing line instead of a fade-out.",homework:["Add one vivid image, number, or line to your next talk.","Build the talk around a single story.","Write your last line in advance and land it."]},
+windbag:{who:"Once you have the floor you don't want to give it up, and your point often arrives long after you could have stopped.",why:"Holding the floor feels good; ending feels like losing it. So you keep going past the moment you've already made your case.",remove:"Land and stop. Set a hard time-box, cap yourself at one point per minute, and finish a few sentences earlier than feels natural.",homework:["Set a timer and stop dead when it goes.","Edit a talk down to half and deliver that.","Make your point, then stop three sentences early."]},
+showman:{who:"You're engaging, energetic, fun to watch — but sometimes the performance runs ahead of the substance underneath it.",why:"Performing is comfortable; the bare argument is exposed. So style takes the lead and the actual takeaway can get thin.",remove:"Anchor every flourish to a real point. One clear takeaway, evidence behind each claim, and the discipline to cut a favourite bit that doesn't serve it.",homework:["State your one takeaway before you design anything.","Back each claim with a fact.","Deliver a plain version first; add colour only where it helps."]},
+bulldozer:{who:"You come in strong and keep the momentum — but you don't always pause to read the room or let it back.",why:"Momentum feels like strength, so your feedback channel switches off: you stop noticing disengagement or the desire to respond.",remove:"Build in feedback loops. Pause to read faces, ask a genuine question and wait, and actively invite pushback.",homework:["Add two checkpoints where you stop and read the room.","Ask one real question and wait for the answer.","Invite challenge: 'where might this be wrong?'"]},
+joker:{who:"You're quick and funny, and the laughs come easily — but the humour can become a way of never quite landing the real point.",why:"A joke is a safety behaviour: a laugh is safer and more controllable than a sincere, exposed moment.",remove:"Practise sincerity. Cap the jokes, hold one heartfelt point without escaping it, and use the laugh to open the door — then say the true thing.",homework:["Deliver a 2-minute talk with zero jokes.","Right after a laugh, land one real point while attention is high.","Hold one serious beat in a conversation without deflecting."]},
+robot:{who:"You're polished, precise, well-prepared — and somehow it lands a little cold, more presentation than connection.",why:"Your attention is on getting it right, which crowds out attention to the people. Warmth never gets any bandwidth, so you read as capable but distant.",remove:"Turn your attention outward. Talk to one person at a time, open as if in conversation, and address the room directly as 'you.'",homework:["Deliver a section as a genuine conversation with one listener.","Open your next talk as if speaking to a friend.","Add a direct 'you' to bring the audience in."]},
+pleaser:{who:"You read the room for approval, and the moment someone disagrees you tend to soften, backtrack, or cave.",why:"Being liked has become the priority, so any friction triggers a retreat. Seeking approval is the safety behaviour that keeps you from holding your ground.",remove:"Practise holding your line — restate your view once, calmly, under mild pushback — and stop scanning the room for reassurance.",homework:["Rehearse restating a view once, calmly, under disagreement.","Deliver without scanning for nods.","State one unhedged opinion a day: 'my position is…'."]},
+defensive:{who:"You handle the talk fine, but questions feel like attacks, and Q&A is where you tense up and push back.",why:"You read challenge as threat, so questions trip the same fight-or-flight response — and you move to protect yourself rather than engage.",remove:"Put a beat between the question and your answer. Bridge and breathe: pause, thank the asker, then respond — and treat the challenge as curiosity, not combat.",homework:["Have someone fire three tough questions; answer each after a breath.","Open answers with 'good challenge — here's how I see it.'","Reframe each attack into the honest question underneath it."]}
+};
 function meterRow(k,val){
   const d=DIMS[k];
   const z = k==="A"?[0,38] : k==="F"?[55,100] : [35,68];
   return `<div class="row">
-    <div class="row-top"><span>${d.lo}</span><span class="row-name">${d.name}</span><span>${d.hi}</span></div>
+    <div class="row-top"><span>${d.lo}</span><span class="row-name">${d.name} <b>${val}</b></span><span>${d.hi}</span></div>
     <div class="bar">
       <div class="zone" style="left:${z[0]}%;width:${z[1]-z[0]}%"></div>
       <div class="lead" data-w="${val}" style="width:0%"></div>
@@ -913,6 +954,8 @@ function finish(){
   $("rPortrait").textContent=primary.portrait;
   $("rCue").textContent=primary.cue;
   $("rTravels").innerHTML=primary.with.map(w=>`<span class="chip">${w}</span>`).join("");
+  const dp=DEEP[primary.id];
+  if(dp){ $("dWho").textContent=dp.who; $("dWhy").textContent=dp.why; $("dRemove").textContent=dp.remove; $("dHome").innerHTML="<ul>"+dp.homework.map(h=>"<li>"+h+"</li>").join("")+"</ul>"; }
 
   $("sName").textContent=secondary.name;
   $("sTag").textContent=secondary.tag;
@@ -952,10 +995,12 @@ $("start").onclick=()=>{ const lv=$("lang").value; LANG=(lv==='fr'||lv==='es')?l
 $("back").onclick=back;
 $("retake").onclick=()=>{ idx=0; answers.fill(null); show("intro"); };
 $("share").onclick=()=>{
-  const r=window._result, d=r.dim;
-  const txt=`My speaker profile: ${r.primary} (with a secondary lean towards ${r.secondary}).\nApprehension ${d.A} · Presence ${d.P} · Focus ${d.F} · Preparation ${d.C}\nFind yours with the Speaker Profile Assessment.`;
-  const done=()=>{ $("toast").textContent="Copied to clipboard ✓"; setTimeout(()=>$("toast").textContent="",2600); };
-  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(done); } else { done(); }
+  const r=window._result||{}, url="https://aristotl.es/";
+  const txt=`I'm "${r.primary}" on the Speaker Profiles test \ud83c\udfa4 What kind of speaker are you under pressure? Find out (free): ${url}`;
+  const done=()=>{ $("toast").textContent="Copied \u2014 paste it anywhere \u2713"; setTimeout(()=>$("toast").textContent="",2600); };
+  if(navigator.share){ navigator.share({title:"Speaker Profiles", text:`I'm "${r.primary}" on the Speaker Profiles test. What kind of speaker are you?`, url}).catch(()=>{}); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(done); }
+  else { done(); }
 };
 /* ---- ratings + Supabase capture ---- */
 const SUPABASE_URL = "https://dmpghqztbluxarprzeae.supabase.co";
