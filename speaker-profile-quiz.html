@@ -169,6 +169,7 @@
   .phonegroup select{flex:0 0 auto;max-width:48%;padding:13px 12px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;cursor:pointer;}
   .phonegroup input{flex:1;min-width:0;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
   .phonegroup select:focus-visible,.phonegroup input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
+  .topshare{text-align:center;margin:2px 0 26px;}
   .homework ul{margin:8px 0 0;padding-left:20px;}
   .homework li{margin:7px 0;color:var(--on-paper-soft);line-height:1.5;}
   .hidden{display:none !important;}
@@ -262,6 +263,8 @@
         <div class="spot-tag" id="rTag"></div>
       </div>
 
+      <div class="topshare"><button class="btn" id="shareTop">Share on WhatsApp →</button></div>
+
       <div id="balanceBox"></div>
 
       <div class="rank">
@@ -313,7 +316,7 @@
       </div>
 
       <div class="actions">
-        <button class="btn" id="share">Share my result</button>
+        <button class="btn" id="share">Share on WhatsApp</button>
         <a class="btn ghost" href="./">Explore all profiles →</a>
         <button class="btn ghost" id="retake">Retake</button>
       </div>
@@ -988,20 +991,20 @@ function finish(){
     document.querySelectorAll(".rfill").forEach(el=>el.style.width=el.dataset.w+"%");
   }));
 
-  window._result={primary:primary.name,secondary:secondary.name,dim};
+  window._result={primary:primary.name,secondary:secondary.name,dim,pid:primary.id};
 }
 
 $("start").onclick=()=>{ const lv=$("lang").value; LANG=(lv==='fr'||lv==='es')?lv:'en'; shuffle(Q); answers.fill(null); idx=0; show("quiz"); renderQ(); };
 $("back").onclick=back;
 $("retake").onclick=()=>{ idx=0; answers.fill(null); show("intro"); };
-$("share").onclick=()=>{
-  const r=window._result||{}, url="https://aristotl.es/";
-  const txt=`I'm "${r.primary}" on the Speaker Profiles test \ud83c\udfa4 What kind of speaker are you under pressure? Find out (free): ${url}`;
-  const done=()=>{ $("toast").textContent="Copied \u2014 paste it anywhere \u2713"; setTimeout(()=>$("toast").textContent="",2600); };
-  if(navigator.share){ navigator.share({title:"Speaker Profiles", text:`I'm "${r.primary}" on the Speaker Profiles test. What kind of speaker are you?`, url}).catch(()=>{}); }
-  else if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(done).catch(done); }
-  else { done(); }
-};
+function doShare(){
+  const r=window._result||{};
+  const url="https://aristotl.es/share/"+(r.pid||"")+".html";
+  const msg=`I'm "${r.primary}" on the Speaker Profiles test \ud83c\udfa4 What kind of speaker are you under pressure?`;
+  const wa="https://wa.me/?text="+encodeURIComponent(msg+"\n"+url);
+  window.open(wa,"_blank");
+}
+$("share").onclick=doShare; if($("shareTop")) $("shareTop").onclick=doShare;
 /* ---- ratings + Supabase capture ---- */
 const SUPABASE_URL = "https://dmpghqztbluxarprzeae.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcGdocXp0Ymx1eGFycHJ6ZWFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTQ1OTEsImV4cCI6MjA5ODQ3MDU5MX0.8UhaPHnIzGraJA_CwY22EisVsFdF82y6J5Uh1l1lP2Q";
