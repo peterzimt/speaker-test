@@ -52,6 +52,11 @@
 
   /* hero */
   .hero{text-align:center;padding:clamp(56px,9vw,110px) 0 clamp(30px,5vw,50px);}
+  .topnav{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;max-width:1080px;margin:0 auto 34px;}
+  .topnav .brand{font-family:'Fraunces',serif;font-weight:600;font-size:20px;color:var(--on-dark);text-decoration:none;}
+  .topnav .navlinks{display:flex;gap:8px;flex-wrap:wrap;}
+  .topnav .navlinks a{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.04em;text-decoration:none;padding:8px 14px;border-radius:999px;border:1px solid var(--line);color:var(--on-dark-soft);transition:color .15s,border-color .15s;}
+  .topnav .navlinks a:hover{color:var(--gold);border-color:var(--gold);}
   .eyebrow{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin:0 0 20px;}
   h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(40px,8vw,76px);line-height:1.02;letter-spacing:-.02em;margin:0 0 22px;}
   h1 em{font-style:italic;color:var(--gold-bright);}
@@ -104,6 +109,14 @@
 </head>
 <body>
 <div class="wrap">
+  <nav class="topnav">
+    <a href="./" class="brand">aristotl.es</a>
+    <div class="navlinks">
+      <a href="./speaker-profile-quiz.html">The test</a>
+      <a href="./coaching.html">Coaching</a>
+      <a href="./meetup.html">Madrid meetup</a>
+    </div>
+  </nav>
 
   <header class="hero">
     <p class="eyebrow">The Speaker Profiles</p>
