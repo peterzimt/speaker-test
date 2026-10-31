@@ -58,7 +58,7 @@ async function route(request, env) {
   // ---- YouTube connection (host) and camera uploads
   if (a === "youtube" && b === "status" && m === "GET") { requireHost(request, env); return youtubeStatus(env); }
   if (a === "youtube" && b === "connect" && m === "POST") { requireHost(request, env); return youtubeConnect(request, env); }
-  if (a === "youtube" && b === "callback" && m === "GET") return youtubeCallback(request, env);
+  if (a === "youtube" && b === "exchange" && m === "POST") { requireHost(request, env); return youtubeExchange(request, env); }
   if (a === "youtube" && b === "disconnect" && m === "POST") { requireHost(request, env); return youtubeDisconnect(env); }
   if (a === "camera" && b === "check" && m === "POST") { requireCamera(request, env); return json({ ok: true, youtube: Boolean(await getSetting(env, "yt_refresh")) }); }
   if (a === "speeches" && b && c === "uploads" && m === "POST") { requireCamera(request, env); return startUpload(request, env, b); }
@@ -427,39 +427,41 @@ async function youtubeConnect(request, env) {
     env.DB.prepare("DELETE FROM oauth_states WHERE created_at < ?").bind(Date.now() - 3600e3),
     env.DB.prepare("INSERT INTO oauth_states (state, created_at) VALUES (?, ?)").bind(state, Date.now()),
   ]);
-  const redirect = new URL(request.url).origin + "/api/youtube/callback";
+  const redirect = siteOrigin(env) + "/tools/admin.html"; // Google sends the user back to the admin page
   const u = new URL(gUrl(env, "GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"));
-  u.search = new URLSearchParams({
+  u.search = "?" + new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirect, response_type: "code", scope: YT_SCOPES,
     access_type: "offline", prompt: "consent", include_granted_scopes: "true", state,
-  });
+  }).toString();
   return json({ url: u.toString() });
 }
 
-async function youtubeCallback(request, env) {
-  const url = new URL(request.url);
-  const back = (msg) => new Response(null, { status: 302, headers: { Location: siteOrigin(env) + "/tools/admin.html?youtube=" + encodeURIComponent(msg) + "#youtube" } });
-  const state = url.searchParams.get("state"), code = url.searchParams.get("code");
-  if (url.searchParams.get("error")) return back("cancelled");
-  const st = state && await env.DB.prepare("SELECT created_at FROM oauth_states WHERE state = ?").bind(state).first();
-  if (!st || Date.now() - st.created_at > 15 * 60e3) return back("expired");
-  await env.DB.prepare("DELETE FROM oauth_states WHERE state = ?").bind(state).run();
+async function youtubeExchange(request, env) {
+  const { code, state } = await readJson(request);
+  const st = state && await env.DB.prepare("SELECT created_at FROM oauth_states WHERE state = ?").bind(String(state)).first();
+  if (!st || Date.now() - st.created_at > 15 * 60e3) throw new HttpError(400, "That connection link expired. Click Connect again.");
+  await env.DB.prepare("DELETE FROM oauth_states WHERE state = ?").bind(String(state)).run();
   const res = await fetch(gUrl(env, "GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"), {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: url.origin + "/api/youtube/callback", grant_type: "authorization_code" }),
+    body: new URLSearchParams({ code: String(code || ""), client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: siteOrigin(env) + "/tools/admin.html", grant_type: "authorization_code" }),
   });
   const tok = await res.json().catch(() => ({}));
-  if (!res.ok || !tok.refresh_token) { console.error("token exchange", res.status, JSON.stringify(tok)); return back("failed"); }
+  if (!res.ok || !tok.refresh_token) {
+    console.error("token exchange", res.status, JSON.stringify(tok));
+    throw new HttpError(502, "Google didn't give the site access" + (tok.error_description ? ": " + tok.error_description : "") + ". Try again and tick the YouTube permission boxes.");
+  }
   await setSetting(env, "yt_refresh", tok.refresh_token);
   accessCache = { token: tok.access_token, exp: Date.now() + (tok.expires_in - 60) * 1000 };
+  let channel = null;
   try {
     const ch = await (await fetch(gUrl(env, "YT_API_URL", "https://www.googleapis.com/youtube/v3") + "/channels?part=snippet&mine=true",
       { headers: { Authorization: "Bearer " + tok.access_token } })).json();
     const c = ch.items?.[0];
-    await setSetting(env, "yt_channel", c ? JSON.stringify({ id: c.id, title: c.snippet?.title }) : null);
+    channel = c ? { id: c.id, title: c.snippet?.title } : null;
+    await setSetting(env, "yt_channel", channel ? JSON.stringify(channel) : null);
   } catch {}
-  return back("connected");
+  return json({ connected: true, channel });
 }
 
 async function youtubeDisconnect(env) {
