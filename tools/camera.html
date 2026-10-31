@@ -167,7 +167,7 @@
   }
   function render() {
     const s = current;
-    $("#whoTag").textContent = rec ? `Recording ${recSpeech.speaker}` : !s ? "Waiting for the next speaker…" : s.film ? `${s.speaker} is on — ready to film` : `${s.speaker} didn't agree to be filmed`;
+    $("#whoTag").textContent = rec ? `Recording ${recSpeech.speaker}` : !s ? "Waiting for the next speaker…" : s.film ? `${s.speaker} is on — ready to film` : `${s.speaker}: not filmed (🎥 off in the host console)`;
     $("#recBadge").classList.toggle("hidden", !rec);
     const btn = $("#recBtn");
     btn.disabled = !stream || (!rec && !(s && s.film));

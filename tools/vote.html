@@ -272,22 +272,46 @@
   document.addEventListener("click", keepAwake, { once: true });
   document.addEventListener("visibilitychange", keepAwake);
 
-  // real torch: only where the browser supports it (Chrome on Android)
+  // real torch: only where the browser supports it (Chrome on Android).
+  // Many Android phones have several back cameras and only one has the torch, and some only report
+  // the torch once the video is actually playing, so we try each back camera and wait a moment.
+  const torchVideo = Object.assign(document.createElement("video"), { muted: true, playsInline: true });
+  Object.assign(torchVideo.style, { position: "fixed", width: "1px", height: "1px", opacity: "0", pointerEvents: "none", bottom: "0", left: "0" });
+  document.body.appendChild(torchVideo);
+  async function tryTrack(constraints) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+    const track = stream.getVideoTracks()[0];
+    torchVideo.srcObject = stream; try { await torchVideo.play(); } catch {}
+    for (let i = 0; i < 10; i++) {                      // wait up to ~1.5 s for capabilities to appear
+      if (track.getCapabilities?.().torch) return track;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    track.stop(); return null;
+  }
+  async function findTorchTrack() {
+    let t = await tryTrack({ facingMode: { exact: "environment" } }).catch(e => { if (e.name === "NotAllowedError") throw e; return null; })
+         || await tryTrack({ facingMode: "environment" }).catch(e => { if (e.name === "NotAllowedError") throw e; return null; });
+    if (t) return t;
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    cams.sort((a, b) => (/back|rear|environment|arri|trás|0/i.test(b.label) ? 1 : 0) - (/back|rear|environment|arri|trás|0/i.test(a.label) ? 1 : 0));
+    for (const c of cams) { t = await tryTrack({ deviceId: { exact: c.deviceId } }).catch(() => null); if (t) return t; }
+    throw new Error("no torch");
+  }
   const isiOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (!isiOS && navigator.mediaDevices?.getUserMedia && /Android/i.test(navigator.userAgent)) $("#torchOpt").classList.remove("hidden");
   $("#torchChk").addEventListener("change", async (e) => {
     const msg = $("#torchMsg");
     if (!e.target.checked) { await setTorch(false); torchTrack?.stop(); torchTrack = null; msg.classList.add("hidden"); return; }
+    msg.textContent = "Looking for the torch…"; msg.classList.remove("hidden");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-      const track = stream.getVideoTracks()[0];
-      if (!track.getCapabilities?.().torch) { track.stop(); throw new Error("no torch"); }
-      torchTrack = track;
-      await track.applyConstraints({ advanced: [{ torch: true }] }); setTimeout(() => track.applyConstraints({ advanced: [{ torch: false }] }), 400);
-      msg.textContent = "✓ Torch ready: it will flash twice 15 seconds before the end."; msg.classList.remove("hidden");
-    } catch {
+      torchTrack = await findTorchTrack();
+      await setTorch(true); await new Promise(r => setTimeout(r, 400)); await setTorch(false);
+      msg.textContent = "✓ Torch ready: it will flash twice 15 seconds before the end. Keep this page open.";
+    } catch (ex) {
       e.target.checked = false;
-      msg.textContent = "This phone doesn't let web pages use the torch. The screen flash will still work."; msg.classList.remove("hidden");
+      msg.textContent = ex.name === "NotAllowedError"
+        ? "The camera permission was refused, so the torch can't be used. The screen flash will still work."
+        : "This phone doesn't let web pages use its torch. The screen flash will still work.";
     }
   });
 

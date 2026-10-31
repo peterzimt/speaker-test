@@ -132,9 +132,10 @@
         </div>
         <form id="addForm" class="card row" autocomplete="off">
           <input id="speaker" type="text" maxlength="60" placeholder="Next speaker's first name" style="flex: 1; min-width: 160px" required>
-          <label class="chk" title="Ask the speaker before ticking"><input type="checkbox" id="filmOk"> 🎥 OK to film</label>
+          <label class="chk" title="Untick if the speaker doesn't want to be filmed"><input type="checkbox" id="filmOk" checked> 🎥 Film for video feedback</label>
           <button class="btn" type="submit">Add</button>
         </form>
+        <p class="small soft" style="margin: -4px 4px 0">🎥 <strong style="color:var(--on-dark)">Why film?</strong> Watching yourself is the fastest way to improve: you see the habits the room noticed — the pacing, the “um”s, the hands — next to their scores. The video is unlisted and only the speaker gets the link. Untick for anyone who prefers not.</p>
         <div id="queue" class="stack"></div>
         <p class="small soft">Tip: open voting when a speaker starts, close it a minute after they finish, then show the results and let them scan their personal card.</p>
       </div>
@@ -310,7 +311,7 @@
   $("#addForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = $("#speaker").value.trim(); if (!name) return;
-    try { await api(`/sessions/${code}/speeches`, { method: "POST", host: true, body: { speaker: name, film: $("#filmOk").checked } }); $("#speaker").value = ""; $("#filmOk").checked = false; lastQueueKey = ""; refresh(); }
+    try { await api(`/sessions/${code}/speeches`, { method: "POST", host: true, body: { speaker: name, film: $("#filmOk").checked } }); $("#speaker").value = ""; $("#filmOk").checked = true; lastQueueKey = ""; refresh(); }
     catch (ex) { alert(ex.message); }
   });
 

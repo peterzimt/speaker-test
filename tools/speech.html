@@ -165,7 +165,10 @@
     $("#gapNote").textContent = !diffs.length ? "The room's view will appear here once people have voted." : notes.join(" ") || "Your self-image is close to how the room saw you — good self-awareness.";
     $("#gapCard").classList.remove("hidden");
   }
-  if (r.speech.youtube_id) {
+  if (!r.speech.youtube_id) {
+    $("#videoCard").innerHTML = `<div class="kicker" style="margin:0">Video feedback</div><p class="small soft" style="margin:0">No video for this speech. Next time, say yes to filming: watching yourself next to the room's scores is the fastest way to spot your habits. The video stays unlisted — only you get the link.</p>`;
+    $("#videoCard").classList.remove("hidden");
+  } else {
     $("#videoBox").innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(r.speech.youtube_id)}?rel=0" title="Speech video" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
     $("#videoCard").classList.remove("hidden");
   }
