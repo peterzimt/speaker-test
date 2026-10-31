@@ -263,7 +263,7 @@
     $("#hist").innerHTML = speeches.slice().reverse().map(s => {
       const t = techBySlug[s.technique];
       const bars = CRITERIA.map(c => `<i style="height:${Math.max(3, (s.scores[c.key] || 0) * 5)}px;background:${c.hex}"></i>`).join("");
-      return `<a class="h-item" href="speech.html?id=${s.id}&k=${s.token}"><span><strong>${fmtDate(s.date)}</strong> · ${esc(s.session)}<br><span class="small soft">${t ? esc(t.title) + " · " : ""}${s.votes} feedback${s.fillers != null ? ` · ${s.fillers} um${s.fillers == 1 ? "" : "s"}` : ""}</span></span><span class="dots">${bars}</span></a>`;
+      return `<a class="h-item" href="speech.html?id=${s.id}&k=${s.token}"><span><strong>${fmtDate(s.date)}</strong> · ${esc(s.session)}<br><span class="small soft">${t ? esc(t.title) + " · " : ""}${s.votes} feedback${s.fillers != null ? ` · ${s.fillers} um${s.fillers == 1 ? "" : "s"}` : ""}${s.youtube_id ? " · 🎥 video" : ""}</span></span><span class="dots">${bars}</span></a>`;
     }).join("");
 
     // keep link
@@ -289,6 +289,8 @@
     if (bench.levels?.first && levelId !== "first") opts.push(["first", "Everyone's first speech", bench.levels.first]);
     if (bench.levels?.regular && levelId !== "regular") opts.push(["regular", "Students after 4–6 speeches", bench.levels.regular]);
     if (bench.everyone) opts.push(["all", "Everyone, all speeches", bench.everyone]);
+    const selfs = scored.slice(-3).map(s => s.self).filter(Boolean);
+    if (selfs.length) opts.unshift(["self", "How you rate yourself", { people: 1, self: true, scores: Object.fromEntries(CRITERIA.map(c => [c.key, selfs.reduce((a, x) => a + x[c.key], 0) / selfs.length])) }]);
     if (!opts.length) return $("#compare").classList.add("hidden");
     const prev = $("#cmpSel").value;
     $("#cmpSel").innerHTML = opts.map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join("");
@@ -303,7 +305,7 @@
       }).join("");
       const ranked = CRITERIA.filter(c => mine[c.key] != null && g.scores[c.key] != null).map(c => [c, mine[c.key] - g.scores[c.key]]).sort((x, y) => y[1] - x[1]);
       const best = ranked[0], worst = ranked[ranked.length - 1];
-      $("#cmpNote").textContent = `Compared with ${g.people} people. ` + (best && best[1] > 0.05 ? `You're ahead on ${best[0].label}` : "You're close to the group") + (worst && worst[1] < -0.05 ? `; ${worst[0].label} is where they're ahead of you.` : ".");
+      $("#cmpNote").textContent = g.self ? (best && best[1] > 0.3 ? `The room scores you higher than you rate yourself, especially on ${best[0].label}.` : worst && worst[1] < -0.3 ? `You rate yourself higher than the room on ${worst[0].label}.` : "Your self-ratings match how the room sees you.") : `Compared with ${g.people} people. ` + (best && best[1] > 0.05 ? `You're ahead on ${best[0].label}` : "You're close to the group") + (worst && worst[1] < -0.05 ? `; ${worst[0].label} is where they're ahead of you.` : ".");
     };
     $("#cmpSel").onchange = draw;
     draw();

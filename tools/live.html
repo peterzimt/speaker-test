@@ -93,6 +93,7 @@
         <h2 id="sTitle" style="margin: 0"></h2>
       </div>
       <div class="row">
+        <button class="btn ghost small" id="camBtn" type="button">🎥 Camera</button>
         <button class="btn ghost small" id="projBtn" type="button">Projector mode</button>
         <button class="btn ghost small" id="leaveBtn" type="button">Change session</button>
       </div>
@@ -131,6 +132,7 @@
         </div>
         <form id="addForm" class="card row" autocomplete="off">
           <input id="speaker" type="text" maxlength="60" placeholder="Next speaker's first name" style="flex: 1; min-width: 160px" required>
+          <label class="chk" title="Ask the speaker before ticking"><input type="checkbox" id="filmOk"> 🎥 OK to film</label>
           <button class="btn" type="submit">Add</button>
         </form>
         <div id="queue" class="stack"></div>
@@ -157,7 +159,7 @@
         <div class="row" style="gap: 16px; align-items: flex-start">
           <div class="mini-qr" id="rQr"></div>
           <div class="small soft" style="flex: 1; min-width: 160px">
-            <strong style="color: var(--on-dark)">Speaker: scan this</strong> to keep your feedback card and add it to your speaker passport.
+            <strong style="color: var(--on-dark)">Speaker: scan this</strong> to rate yourself, then see how the room saw you — and keep your card in your speaker passport.
           </div>
         </div>
         <button class="btn ghost small" id="toggleComments" type="button">Show written comments</button>
@@ -268,17 +270,18 @@
   }
 
   function renderQueue(list) {
-    const key = JSON.stringify(list.map(s => [s.id, s.status, s.votes]));
+    const key = JSON.stringify(list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id]));
     if (key === lastQueueKey) return;
     lastQueueKey = key;
     $("#queue").innerHTML = list.length ? list.map(s => `
       <div class="q-item ${s.status === "open" ? "open" : ""}">
         <div><span class="who">${esc(s.speaker)}</span><br>
-          <span class="small soft">${s.status === "open" ? "Voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}</span></div>
+          <span class="small soft">${s.status === "open" ? "Voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}${s.youtube_id ? ` · <a href="https://youtu.be/${s.youtube_id}" target="_blank" rel="noopener">▶ video</a>` : ""}</span></div>
         <div class="q-actions">
           ${s.status === "open"
             ? `<button class="btn small" data-act="close" data-id="${s.id}">Close voting</button>`
             : `<button class="btn ${s.status === "waiting" ? "" : "ghost"} small" data-act="open" data-id="${s.id}">${s.status === "waiting" ? "Open voting" : "Reopen"}</button>`}
+          <button class="btn ghost small" data-act="film" data-id="${s.id}" data-film="${s.film ? 1 : 0}" title="${s.film ? "Will be filmed. Click to stop filming this speaker" : "Not filmed. Click if the speaker agrees to be filmed"}" style="${s.film ? "" : "opacity:.45"}">🎥${s.film ? "" : " off"}</button>
           ${s.votes ? `<button class="btn ghost small" data-act="results" data-id="${s.id}" data-k="${s.result_token}">Results</button>` : ""}
           <button class="btn danger small" data-act="delete" data-id="${s.id}" title="Remove" aria-label="Remove ${esc(s.speaker)}">✕</button>
         </div>
@@ -289,6 +292,10 @@
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const { act, id } = b.dataset;
     if (act === "results") return showResults(id, b.dataset.k);
+    if (act === "film") {
+      try { await api(`/speeches/${id}/film`, { method: "POST", host: true, body: { film: b.dataset.film !== "1" } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
+      return;
+    }
     if (act === "delete" && !confirm("Remove this speaker and their feedback?")) return;
     b.disabled = true;
     try {
@@ -303,7 +310,7 @@
   $("#addForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = $("#speaker").value.trim(); if (!name) return;
-    try { await api(`/sessions/${code}/speeches`, { method: "POST", host: true, body: { speaker: name } }); $("#speaker").value = ""; lastQueueKey = ""; refresh(); }
+    try { await api(`/sessions/${code}/speeches`, { method: "POST", host: true, body: { speaker: name, film: $("#filmOk").checked } }); $("#speaker").value = ""; $("#filmOk").checked = false; lastQueueKey = ""; refresh(); }
     catch (ex) { alert(ex.message); }
   });
 
@@ -314,6 +321,7 @@
       $("#rName").innerHTML = esc(r.speech.speaker) + " — <em>the room's view</em>";
       $("#rKicker").textContent = "Feedback" + (r.speech.technique && techBySlug[r.speech.technique] ? " · " + techBySlug[r.speech.technique].title : "");
       $("#rRadar").innerHTML = radarSvg(r.scores, { size: 420 });
+      $("#rQr").parentElement.classList.remove("hidden"); $("#toggleComments").classList.remove("hidden");
       $("#rCount").textContent = `${r.votes} ${r.votes == 1 ? "person" : "people"} gave feedback`;
       $("#rFillers").classList.toggle("hidden", !r.fillers); if (r.fillers) $("#rFillerN").textContent = r.fillers.count;
       $("#rQr").innerHTML = qrSvg(siteUrl(`speech.html?id=${id}&k=${k}`));
@@ -331,6 +339,15 @@
   $("#closeOverlay").addEventListener("click", () => $("#overlay").classList.add("hidden"));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#overlay").classList.add("hidden"); });
 
+  $("#camBtn").addEventListener("click", () => {
+    const url = siteUrl("camera.html?c=" + code);
+    $("#rName").innerHTML = "Camera <em>phone</em>";
+    $("#rKicker").textContent = "Scan with the camera person's phone";
+    $("#rRadar").innerHTML = `<div style="background:var(--paper);padding:14px;border-radius:16px;max-width:340px">${qrSvg(url)}</div>`;
+    $("#rCount").textContent = "They'll need the camera password you set in Cloudflare (or your host password).";
+    $("#rFillers").classList.add("hidden"); $("#rQr").parentElement.classList.add("hidden"); $("#toggleComments").classList.add("hidden"); $("#rComments").classList.add("hidden");
+    $("#overlay").classList.remove("hidden");
+  });
   $("#projBtn").addEventListener("click", () => {
     document.body.classList.add("projector");
     document.documentElement.requestFullscreen?.().catch(() => {});

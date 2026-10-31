@@ -85,6 +85,7 @@
     <div class="tabs" role="tablist">
       <button role="tab" data-tab="dash" aria-selected="true">Dashboard</button>
       <button role="tab" data-tab="students" aria-selected="false">Students</button>
+      <button role="tab" data-tab="youtube" aria-selected="false">YouTube</button>
     </div>
     <div id="err" class="notice err hidden"></div>
 
@@ -130,6 +131,22 @@
         <h3>By technique</h3>
         <p class="sub">Average feedback in sessions on each technique.</p>
         <div class="tablewrap" id="techniques"></div>
+      </div>
+    </div>
+
+    <!-- YOUTUBE -->
+    <div id="tab-youtube" class="stack hidden">
+      <div id="ytMsg" class="notice hidden"></div>
+      <div class="card stack">
+        <h3 style="margin:0">Your YouTube channel</h3>
+        <p class="sub" style="margin:0" id="ytStatus">Checking…</p>
+        <div class="row"><button class="btn" id="ytConnect" type="button">Connect my YouTube channel</button><button class="btn danger small hidden" id="ytDisconnect" type="button">Disconnect</button></div>
+        <p class="muted" style="margin:0">The site only gets permission to upload videos and read your channel name. Videos are uploaded as <strong>unlisted</strong>. You can remove access any time in your Google account (Security → Third-party access).</p>
+      </div>
+      <div class="card stack">
+        <h3 style="margin:0">Camera person</h3>
+        <p class="muted" style="margin:0">In the host console, click <strong>🎥 Camera</strong> to show a QR code for the camera person's phone. They log in with the camera password (<span id="camPw"></span>). Filming starts when you open voting and stops when you close it — only for speakers with 🎥 ticked.</p>
+        <div><a class="btn ghost small" href="camera.html" target="_blank" rel="noopener">Open the camera page</a></div>
       </div>
     </div>
 
@@ -192,9 +209,40 @@
     $$(".tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
     $("#tab-dash").classList.toggle("hidden", b.dataset.tab !== "dash");
     $("#tab-students").classList.toggle("hidden", b.dataset.tab !== "students");
+    $("#tab-youtube").classList.toggle("hidden", b.dataset.tab !== "youtube");
+    if (b.dataset.tab === "youtube") loadYoutube();
     try { history.replaceState(null, "", "#" + b.dataset.tab); } catch {}
   }));
   if (location.hash === "#students") $('.tabs button[data-tab="students"]').click();
+  if (location.hash === "#youtube") $('.tabs button[data-tab="youtube"]').click();
+
+  /* ================= YOUTUBE ================= */
+  const ytParam = new URLSearchParams(location.search).get("youtube");
+  if (ytParam) {
+    const msgs = { connected: ["✓ Your YouTube channel is connected.", false], cancelled: ["Connection cancelled.", true], expired: ["That connection link expired — try again.", true], failed: ["Google didn't give the site access. Try again, and make sure you tick the YouTube permission boxes.", true] };
+    const [m, bad] = msgs[ytParam] || ["", false];
+    if (m) { $("#ytMsg").textContent = m; $("#ytMsg").classList.toggle("err", bad); $("#ytMsg").classList.remove("hidden"); }
+    history.replaceState(null, "", location.pathname + "#youtube");
+  }
+  async function loadYoutube() {
+    try {
+      const st = await api("/youtube/status", { host: true });
+      const ch = st.channel ? JSON.parse(st.channel) : null;
+      $("#ytStatus").innerHTML = !st.configured ? "Not set up yet: the Google client ID and secret are missing on the Worker."
+        : st.connected ? `Connected to <strong>${esc(ch?.title || "your channel")}</strong>.` : "Not connected yet.";
+      $("#ytConnect").textContent = st.connected ? "Reconnect / switch channel" : "Connect my YouTube channel";
+      $("#ytConnect").disabled = !st.configured;
+      $("#ytDisconnect").classList.toggle("hidden", !st.connected);
+      $("#camPw").textContent = st.camera_password ? "the CAMERA_KEY you set in Cloudflare" : "not set yet, so for now only your host password works";
+    } catch (ex) { $("#ytStatus").textContent = ex.message; }
+  }
+  $("#ytConnect").addEventListener("click", async () => {
+    try { const { url } = await api("/youtube/connect", { method: "POST", host: true }); location.href = url; } catch (ex) { alert(ex.message); }
+  });
+  $("#ytDisconnect").addEventListener("click", async () => {
+    if (!confirm("Disconnect YouTube? Uploads will stop until you reconnect.")) return;
+    try { await api("/youtube/disconnect", { method: "POST", host: true }); loadYoutube(); } catch (ex) { alert(ex.message); }
+  });
 
   async function load() {
     try {

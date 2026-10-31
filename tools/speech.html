@@ -16,6 +16,23 @@
   .comment { background: rgba(255,255,255,.04); border-left: 3px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
   .comment.next { border-left-color: var(--c-delivery); }
   .best { font: 600 22px/1.25 Fraunces, serif; }
+  .crit-row { padding: 12px 0; border-top: 1px solid var(--card-line); }
+  .crit-row:first-of-type { border-top: 0; padding-top: 2px; }
+  .crit-name { font: 700 12.5px/1 "Space Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
+  .crit-hint { font-size: 13.5px; color: var(--on-dark-soft); margin: 6px 0 10px; }
+  .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .scale button { appearance: none; border: 1px solid var(--card-line); background: rgba(0,0,0,.2); color: var(--on-dark); font: 600 18px/1 Fraunces, serif; border-radius: 12px; height: 46px; cursor: pointer; }
+  .scale button[aria-pressed="true"] { background: var(--cc); border-color: var(--cc); color: var(--ink); }
+  .gap { display: grid; grid-template-columns: 90px 1fr 1fr 60px; gap: 8px; align-items: center; font-size: 14px; padding: 6px 0; font-variant-numeric: tabular-nums; }
+  .gap.h { font: 700 10.5px/1 "Space Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark-soft); }
+  .gap b { font: 700 11px/1 "Space Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .gap .d { text-align: right; color: var(--on-dark-soft); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--on-dark-soft); margin-top: 8px; }
+  .legend span { display: inline-flex; gap: 6px; align-items: center; }
+  .legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.dash { background: repeating-linear-gradient(90deg, var(--on-dark) 0 4px, transparent 4px 7px); opacity: .6; }
+  .video { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 </style>
 </head>
 <body>
@@ -27,6 +44,18 @@
 <main class="wrap stack">
   <div id="err" class="notice err hidden"></div>
 
+  <section id="selfGate" class="stack hidden">
+    <div>
+      <div class="kicker">Before you look</div>
+      <h1 id="gateTitle">How did it <em>feel?</em></h1>
+      <p class="soft">Rate yourself first, honestly. Then you'll see how the room saw you — the gap is often the most useful part.</p>
+    </div>
+    <div class="card" id="selfCrits"></div>
+    <button class="btn block" id="selfSend" type="button" disabled>See how the room saw me →</button>
+    <button class="btn ghost block" id="selfSkip" type="button">Skip</button>
+    <div id="selfErr" class="notice err hidden"></div>
+  </section>
+
   <section id="card" class="stack hidden">
     <div>
       <div class="kicker" id="kicker">Feedback card</div>
@@ -35,6 +64,12 @@
     </div>
 
     <div class="card" id="radar"></div>
+    <div class="card stack hidden" id="gapCard">
+      <div class="kicker" style="margin:0">You vs the room</div>
+      <div id="gapRows"></div>
+      <p class="small soft" id="gapNote" style="margin:0"></p>
+    </div>
+    <div class="card stack hidden" id="videoCard"><div class="kicker" style="margin:0">Your speech on video</div><div class="video" id="videoBox"></div><p class="small soft" style="margin:0">Unlisted on YouTube: only people with the link can watch it.</p></div>
     <div class="card"><div class="scores" id="scores"></div></div>
 
     <div class="card" id="strength"></div>
@@ -87,11 +122,53 @@
   try { r = await api(`/speeches/${encodeURIComponent(id)}/results?k=${encodeURIComponent(k)}`); }
   catch (ex) { return fail(ex.message); }
 
+  /* ---------- self-rating first ---------- */
+  const skipped = () => AT.store.get("aristotles.selfskip." + id);
+  if (!r.self && !skipped()) {
+    const mine = {};
+    $("#gateTitle").innerHTML = `${esc(r.speech.speaker)}, how did it <em>feel?</em>`;
+    $("#selfCrits").innerHTML = CRITERIA.map(c => `<div class="crit-row" style="--cc:${c.hex}"><span class="crit-name" style="color:${c.hex}">${c.label}</span><div class="crit-hint">${c.hint}</div>
+      <div class="scale">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-k="${c.key}" data-v="${n}" aria-pressed="false">${n}</button>`).join("")}</div></div>`).join("");
+    $("#selfCrits").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-k]"); if (!b) return;
+      mine[b.dataset.k] = Number(b.dataset.v);
+      AT.$$(`#selfCrits button[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      $("#selfSend").disabled = CRITERIA.some(c => !mine[c.key]);
+    });
+    $("#selfGate").classList.remove("hidden");
+    await new Promise(resolve => {
+      $("#selfSend").onclick = async () => {
+        try { const res = await api(`/speeches/${encodeURIComponent(id)}/self`, { method: "POST", body: { k, ...mine } }); r.self = res.self; resolve(); }
+        catch (ex) { $("#selfErr").textContent = ex.message; $("#selfErr").classList.remove("hidden"); }
+      };
+      $("#selfSkip").onclick = () => { AT.store.set("aristotles.selfskip." + id, 1); resolve(); };
+    });
+    $("#selfGate").classList.add("hidden"); window.scrollTo(0, 0);
+  }
+
   const t = techBySlug[r.speech.technique];
   $("#title").innerHTML = `${esc(r.speech.speaker)}, <em>here's how it landed</em>`;
   $("#meta").textContent = `${fmtDate(r.speech.date)} · ${r.speech.session} · ${r.votes} ${r.votes == 1 ? "person" : "people"} gave feedback`;
   if (t) { $("#kicker").textContent = "Feedback card · " + t.title; $("#techBtn").href = `technique/${t.slug}.html`; $("#techBtn").style.display = ""; }
-  $("#radar").innerHTML = radarSvg(r.scores, { size: 380 });
+  $("#radar").innerHTML = radarSvg(r.scores, { size: 380, compare: r.self || null }) +
+    (r.self ? `<div class="legend"><span><i style="background:#E9B85C"></i>The room</span><span><i class="dash"></i>Your self-rating</span></div>` : "");
+  if (r.self) {
+    $("#gapRows").innerHTML = `<div class="gap h"><span></span><span>You</span><span>Room</span><span style="text-align:right">Gap</span></div>` + CRITERIA.map(c => {
+      const a = r.self[c.key], b = r.scores[c.key], d = b == null ? null : b - a;
+      return `<div class="gap"><b style="color:${c.hex}">${c.label}</b><span>${a}</span><span>${b == null ? "–" : b.toFixed(1)}</span><span class="d">${d == null ? "" : Math.abs(d) < 0.25 ? "≈" : (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1)}</span></div>`;
+    }).join("");
+    const diffs = CRITERIA.filter(c => r.scores[c.key] != null).map(c => [c, r.scores[c.key] - r.self[c.key]]).sort((x, y) => y[1] - x[1]);
+    const under = diffs[0], over = diffs[diffs.length - 1];
+    const notes = [];
+    if (under && under[1] >= 0.5) notes.push(`The room rated your ${under[0].label} higher than you did (+${under[1].toFixed(1)}). You're probably harder on yourself there than you need to be.`);
+    if (over && over[1] <= -0.5) notes.push(`On ${over[0].label} you rated yourself higher than the room (${over[1].toFixed(1)}). That's the gap worth working on.`);
+    $("#gapNote").textContent = !diffs.length ? "The room's view will appear here once people have voted." : notes.join(" ") || "Your self-image is close to how the room saw you — good self-awareness.";
+    $("#gapCard").classList.remove("hidden");
+  }
+  if (r.speech.youtube_id) {
+    $("#videoBox").innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(r.speech.youtube_id)}?rel=0" title="Speech video" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
+    $("#videoCard").classList.remove("hidden");
+  }
   $("#scores").innerHTML = CRITERIA.map(c => {
     const v = r.scores[c.key];
     return `<div class="score"><b style="color:${c.hex}">${c.label}</b><div class="bar"><span style="width:${(v || 0) * 20}%;background:${c.hex}"></span></div><span class="v">${v == null ? "–" : v.toFixed(1)}</span></div>`;

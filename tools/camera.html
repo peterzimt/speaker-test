@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1B1426">
+<title>Camera | Aristotl.es</title>
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .wrap { max-width: 720px; }
+  .stage { position: relative; background: #000; border-radius: 18px; overflow: hidden; aspect-ratio: 16 / 9; }
+  .stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .stage .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--on-dark-soft); text-align: center; padding: 20px; }
+  .rec { position: absolute; top: 12px; left: 12px; display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,.55); color: #fff; padding: 7px 12px; border-radius: 999px; font: 700 13px/1 "Space Mono", monospace; }
+  .rec i { width: 10px; height: 10px; border-radius: 50%; background: #FF4A3D; animation: pulse 1s infinite; }
+  .who { position: absolute; bottom: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; align-items: flex-end; }
+  .who .tag { background: rgba(0,0,0,.55); color: #fff; padding: 8px 12px; border-radius: 12px; font-weight: 600; }
+  .bigbtn { width: 100%; padding: 18px; font-size: 18px; }
+  .bigbtn.stop { background: #FF4A3D; color: #fff; }
+  .q { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .q + .q { margin-top: 8px; }
+  .q .bar { grid-column: 1 / -1; }
+  .q .bar span { background: var(--c-delivery); transition: width .3s; }
+  .q.err .bar span { background: var(--warn); }
+  .status { font-size: 13.5px; color: var(--on-dark-soft); }
+  .rowsplit { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+  @media (orientation: landscape) and (max-height: 500px) { .topbar, .hint { display: none; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <span class="chip" id="sessChip">Camera</span>
+</header>
+
+<main class="wrap stack">
+  <section id="login" class="card stack hidden">
+    <div class="kicker">Camera</div>
+    <h1>Film the <em>speakers</em></h1>
+    <p class="soft">Videos go straight to the meetup's YouTube channel as unlisted videos, and onto each speaker's feedback card. Only speakers who agreed are filmed.</p>
+    <form id="loginForm" class="stack">
+      <div><label for="code">Session code (on the projector)</label><input id="code" type="text" maxlength="6" autocapitalize="characters" autocomplete="off" required style="text-transform: uppercase; letter-spacing: .2em; font-family: 'Space Mono', monospace"></div>
+      <div><label for="key">Camera password</label><input id="key" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit">Start</button>
+      <div id="loginErr" class="notice err hidden"></div>
+    </form>
+  </section>
+
+  <section id="cam" class="stack hidden">
+    <div class="notice hidden" id="ytWarn">YouTube isn't connected yet, so videos can't be uploaded. Ask the host to connect it in Admin → YouTube.</div>
+    <div class="stage">
+      <video id="preview" playsinline muted autoplay></video>
+      <div class="empty" id="empty"><div class="stack"><div>Hold the phone sideways, aim at the stage.</div><button class="btn" id="camOn" type="button">📷 Turn on camera</button></div></div>
+      <div class="rec hidden" id="recBadge"><i></i><span id="recTime">0:00</span></div>
+      <div class="who"><span class="tag" id="whoTag">Waiting for the next speaker…</span></div>
+    </div>
+    <button class="btn bigbtn" id="recBtn" type="button" disabled>● Record</button>
+    <div class="rowsplit">
+      <label class="small soft" style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="auto" checked> Start and stop automatically with voting</label>
+      <span class="small soft" id="camInfo"></span>
+    </div>
+    <p class="small soft hint" style="margin:0">Keep this page open until every upload says ✓. Plug the phone in if you can.</p>
+
+    <div class="card stack">
+      <h3 style="margin:0">Uploads</h3>
+      <div id="queue"><p class="small soft" style="margin:0">Nothing recorded yet.</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(() => {
+  const { $, esc, api, store, param } = AT;
+  const API = AT.API;
+  let code = (param("c") || store.get("aristotles.camCode") || "").toUpperCase();
+  let key = store.get("aristotles.camKey");
+  let stream = null, rec = null, recSpeech = null, recStart = 0, chunks = [], manualStop = new Set();
+  let current = null, wakeLock = null;
+  const queue = []; let uploading = false;
+
+  const camHeaders = (extra = {}) => ({ Authorization: "Bearer " + key, ...extra });
+  async function camApi(path, opts = {}) {
+    const res = await fetch(API + "/api" + path, { ...opts, headers: camHeaders(opts.headers) });
+    let data = {}; try { data = await res.json(); } catch {}
+    if (!res.ok) { const e = new Error(data.error || "Error " + res.status); e.status = res.status; throw e; }
+    return data;
+  }
+  function show(id) { $("#login").classList.toggle("hidden", id !== "login"); $("#cam").classList.toggle("hidden", id !== "cam"); }
+
+  /* ---------- login ---------- */
+  $("#code").value = code;
+  $("#loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    code = $("#code").value.trim().toUpperCase(); key = $("#key").value;
+    try { await enter(); } catch (ex) { $("#loginErr").textContent = ex.message; $("#loginErr").classList.remove("hidden"); }
+  });
+  async function enter() {
+    const chk = await camApi("/camera/check", { method: "POST" });
+    await api(`/sessions/${code}/live`); // session exists?
+    store.set("aristotles.camKey", key); store.set("aristotles.camCode", code);
+    history.replaceState(null, "", "?c=" + code);
+    $("#ytWarn").classList.toggle("hidden", chk.youtube);
+    show("cam"); poll(); setInterval(() => { if (!document.hidden) poll(); }, 2000);
+  }
+  (async () => {
+    if (key && code) { try { await enter(); return; } catch { store.del("aristotles.camKey"); } }
+    show("login");
+  })();
+
+  /* ---------- camera ---------- */
+  function pickMime() {
+    const c = ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    return c.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+  }
+  $("#camOn").addEventListener("click", async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+      });
+      $("#preview").srcObject = stream; $("#empty").classList.add("hidden");
+      const s = stream.getVideoTracks()[0].getSettings();
+      $("#camInfo").textContent = `${s.width || "?"}×${s.height || "?"} · ${(pickMime().split(";")[0] || "unsupported").replace("video/", "")}`;
+      keepAwake(); render();
+    } catch (ex) { alert("Couldn't open the camera: " + ex.message); }
+  });
+  async function keepAwake() { try { if (navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch {} }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) keepAwake(); });
+
+  function startRec(speech) {
+    if (!stream || rec) return;
+    const mime = pickMime();
+    rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 128_000 } : undefined);
+    chunks = []; recSpeech = { id: speech.id, speaker: speech.speaker }; recStart = Date.now();
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      const type = (rec.mimeType || mime || "video/webm").split(";")[0];
+      const blob = new Blob(chunks, { type });
+      const item = { speech: recSpeech, blob, type, state: "waiting", received: 0, uploadId: null, youtube: null, err: null, secs: Math.round((Date.now() - recStart) / 1000) };
+      rec = null; recSpeech = null; chunks = [];
+      if (blob.size > 50_000) { queue.push(item); renderQueue(); pump(); }
+      render();
+    };
+    rec.start(1000); render();
+  }
+  function stopRec() { if (rec && rec.state !== "inactive") rec.stop(); }
+
+  $("#recBtn").addEventListener("click", () => {
+    if (rec) { if (recSpeech) manualStop.add(recSpeech.id); stopRec(); }
+    else if (current?.film) { manualStop.delete(current.id); startRec(current); }
+  });
+
+  /* ---------- follow the session ---------- */
+  async function poll() {
+    try {
+      const { session, speech } = await api(`/sessions/${code}/live`);
+      $("#sessChip").textContent = session.title;
+      current = speech;
+      const auto = $("#auto").checked;
+      if (rec && (!speech || speech.id !== recSpeech?.id) && auto) stopRec();               // voting closed → stop
+      if (!rec && speech && speech.film && auto && stream && !manualStop.has(speech.id) && !queue.some(q => q.speech.id === speech.id)) startRec(speech);
+      render();
+    } catch {}
+  }
+  function render() {
+    const s = current;
+    $("#whoTag").textContent = rec ? `Recording ${recSpeech.speaker}` : !s ? "Waiting for the next speaker…" : s.film ? `${s.speaker} is on — ready to film` : `${s.speaker} didn't agree to be filmed`;
+    $("#recBadge").classList.toggle("hidden", !rec);
+    const btn = $("#recBtn");
+    btn.disabled = !stream || (!rec && !(s && s.film));
+    btn.textContent = rec ? "■ Stop recording" : "● Record";
+    btn.classList.toggle("stop", !!rec);
+  }
+  setInterval(() => { if (rec) { const t = Math.round((Date.now() - recStart) / 1000); $("#recTime").textContent = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); } }, 500);
+
+  /* ---------- uploads (sequential, chunked, resumable) ---------- */
+  const mb = n => (n / 1048576).toFixed(n > 1e8 ? 0 : 1) + " MB";
+  function renderQueue() {
+    if (!queue.length) return;
+    $("#queue").innerHTML = queue.map((q, i) => {
+      const pct = q.blob.size ? Math.round(q.received / q.blob.size * 100) : 0;
+      const st = q.state === "done" ? `✓ On YouTube · <a href="https://youtu.be/${q.youtube}" target="_blank" rel="noopener">watch</a>`
+        : q.state === "uploading" ? `Uploading… ${pct}%` : q.state === "error" ? `⚠ ${esc(q.err)}` : "Waiting…";
+      return `<div class="q ${q.state === "error" ? "err" : ""}"><div><strong>${esc(q.speech.speaker)}</strong> <span class="status">· ${Math.floor(q.secs / 60)}:${String(q.secs % 60).padStart(2, "0")} · ${mb(q.blob.size)}</span><div class="status">${st}</div></div>
+        <div>${q.state === "error" ? `<button class="btn small" data-retry="${i}">Retry</button>` : q.state === "done" ? "" : ""}</div>
+        <div class="bar"><span style="width:${q.state === "done" ? 100 : pct}%"></span></div></div>`;
+    }).join("");
+  }
+  $("#queue").addEventListener("click", (e) => { const b = e.target.closest("[data-retry]"); if (!b) return; const q = queue[b.dataset.retry]; q.state = "waiting"; q.err = null; renderQueue(); pump(); });
+
+  async function pump() {
+    if (uploading) return;
+    const q = queue.find(x => x.state === "waiting"); if (!q) return;
+    uploading = true; q.state = "uploading"; renderQueue();
+    try { await uploadOne(q); q.state = "done"; }
+    catch (ex) { q.state = "error"; q.err = ex.message; }
+    uploading = false; renderQueue(); pump();
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function uploadOne(q) {
+    let chunk = 8 * 1048576;
+    if (!q.uploadId) {
+      const r = await camApi(`/speeches/${q.speech.id}/uploads`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ size: q.blob.size, mime: q.type }) });
+      q.uploadId = r.upload_id; chunk = r.chunk; q.received = 0;
+    } else {
+      const s = await camApi(`/uploads/${q.uploadId}`); if (s.done) { q.youtube = s.youtube_id; return; } q.received = s.received;
+    }
+    let fails = 0;
+    while (q.received < q.blob.size) {
+      const part = q.blob.slice(q.received, Math.min(q.received + chunk, q.blob.size));
+      try {
+        const r = await camApi(`/uploads/${q.uploadId}`, { method: "PUT", headers: { "X-Offset": String(q.received), "content-type": "application/octet-stream" }, body: part });
+        fails = 0;
+        if (r.done) { q.youtube = r.youtube_id; q.received = q.blob.size; renderQueue(); return; }
+        q.received = r.received; renderQueue();
+      } catch (ex) {
+        if (ex.status === 410) { q.uploadId = null; throw new Error("Upload expired — tap Retry to start again"); }
+        if (ex.status === 401 || ex.status === 403 || ex.status === 409) throw ex;
+        if (++fails > 6) throw new Error("Connection problem — tap Retry");
+        await sleep(1500 * fails);
+        try { const s = await camApi(`/uploads/${q.uploadId}`); if (s.done) { q.youtube = s.youtube_id; return; } q.received = s.received; } catch {}
+      }
+    }
+  }
+  window.addEventListener("beforeunload", (e) => { if (rec || queue.some(q => q.state !== "done")) { e.preventDefault(); e.returnValue = ""; } });
+})();
+</script>
+</body>
+</html>
