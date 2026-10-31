@@ -72,3 +72,6 @@ ALTER TABLE speeches ADD COLUMN filmer TEXT;
 ALTER TABLE sessions ADD COLUMN camera_mode TEXT NOT NULL DEFAULT 'rotation';
 ALTER TABLE sessions ADD COLUMN camera_person TEXT;
 ALTER TABLE speeches ADD COLUMN topic TEXT;
+ALTER TABLE speeches ADD COLUMN impromptu INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE speeches ADD COLUMN shape TEXT;
+ALTER TABLE sessions ADD COLUMN impro_deck TEXT NOT NULL DEFAULT 'classic';

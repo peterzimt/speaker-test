@@ -57,6 +57,9 @@ async function route(request, env) {
   if (a === "speeches" && b && c === "filmer" && m === "POST") { requireHost(request, env); return setFilmer(request, env, b); }
   if (a === "sessions" && b && c === "camera" && m === "POST") { requireHost(request, env); return setCameraMode(request, env, b); }
   if (a === "sessions" && b && c === "shuffle" && m === "POST") { requireHost(request, env); return shuffleCameras(env, b); }
+  if (a === "sessions" && b && c === "deck" && m === "POST") { requireHost(request, env); return setDeck(request, env, b); }
+  if (a === "speeches" && b && c === "impromptu" && m === "POST") { requireHost(request, env); return setImpromptu(request, env, b); }
+  if (a === "sessions" && b && c === "awards" && m === "GET") { requireHost(request, env); return sessionAwards(env, b); }
 
   // ---- YouTube connection (host) and camera uploads
   if (a === "youtube" && b === "status" && m === "GET") { requireHost(request, env); return youtubeStatus(env); }
@@ -125,7 +128,7 @@ async function listSessions(env) {
 async function getSessionForHost(env, code) {
   const session = await mustGetSession(env, code);
   const { results } = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic,
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic, sp.impromptu, sp.shape,
             COUNT(v.voter) AS votes
        FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
       WHERE sp.session_code = ?
@@ -151,10 +154,17 @@ function timerState(session) {
   if (remaining < -OVERTIME_MAX_MS) return null;       // forgotten timer: stop flashing after 3 minutes over
   return { duration: session.timer_duration, remaining_ms: remaining, prep_ms: Math.max(0, remaining - session.timer_duration * 1000) };
 }
-async function startClock(env, code, seconds) {
-  const end = Date.now() + PREP_MS + seconds * 1000;
+const THINK_MS = 30000;                                 // impromptu: 30 s to think about the surprise topic
+async function startClock(env, code, seconds, prep = PREP_MS) {
+  const end = Date.now() + prep + seconds * 1000;
   await env.DB.prepare("UPDATE sessions SET timer_end = ?, timer_duration = ? WHERE code = ?").bind(end, seconds, code).run();
-  return { duration: seconds, remaining_ms: PREP_MS + seconds * 1000, prep_ms: PREP_MS };
+  return { duration: seconds, remaining_ms: prep + seconds * 1000, prep_ms: prep };
+}
+/* Get-ready time for the speech on stage: 30 s to think for an impromptu speech, 5 s otherwise. */
+async function prepFor(env, session) {
+  if (!session.current_speech_id) return PREP_MS;
+  const sp = await env.DB.prepare("SELECT impromptu, status FROM speeches WHERE id = ?").bind(session.current_speech_id).first();
+  return sp && sp.status === "open" && sp.impromptu ? THINK_MS : PREP_MS;
 }
 async function setTimer(request, env, code) {
   const session = await mustGetSession(env, code);
@@ -176,7 +186,68 @@ async function setTimer(request, env, code) {
     await env.DB.prepare("UPDATE sessions SET timer_duration = ? WHERE code = ?").bind(seconds, session.code).run();
     return json({ timer: timerState(session), duration: seconds });
   }
-  return json({ timer: await startClock(env, session.code, seconds) });
+  // a restart ("reset") never gives the thinking time again: the topic is already known
+  const prep = body.action === "reset" ? PREP_MS : await prepFor(env, session);
+  return json({ timer: await startClock(env, session.code, seconds, prep) });
+}
+
+/* ---------------------------------------------------------- impromptu */
+const IMPRO_TOPICS = [
+  "The best meal I've ever had", "A habit I'm proud of", "The most useful thing I own", "Morning person or night owl?",
+  "A place that changed me", "The last thing that made me laugh out loud", "The best advice I ever ignored",
+  "A skill everyone should learn before 30", "What I'd do with one extra hour a day", "The best boss I ever had",
+  "Meetings: fix them or kill them?", "Remote, office or hybrid?", "The mistake that taught me the most",
+  "How to say no to your manager", "Is it better to be respected or liked?", "What does success mean to you?",
+  "Should children have phones?", "Is honesty always the best policy?", "What will people find strange about us in 100 years?",
+  "Is social media making us lonelier?", "Pitch a holiday on the Moon", "Defend pineapple on pizza",
+  "Convince us to adopt your (imaginary) pet dragon", "Sell us the world's most useless invention",
+  "If animals could talk, which would be the rudest?", "Why Madrid is the best city in the world",
+  "The superpower I'd choose — and why it's a bad idea", "A rule I'd add to every country", "Cats or dogs: settle it tonight",
+  "The one app I'd delete from everyone's phone", "Why you should learn to cook one dish perfectly", "My hidden talent",
+];
+const IMPRO_SHAPES = [
+  "PREP: Point → Reason → Example → Point", "Past · Present · Future", "Problem · Solution · Impact",
+  "Story · Message · Action", "What · So what · Now what", "Three reasons, then your point again",
+];
+const pick = list => list[crypto.getRandomValues(new Uint32Array(1))[0] % list.length];
+/* Topic decks: "classic" is built in; the others are JSON files on the site (tools/assets/decks/<id>.json),
+   e.g. black cards from Cards Against Humanity (CC BY-NC-SA). Each file: { "name": "...", "cards": ["...", ...] }. */
+const DECKS = ["classic", "cah_family", "cah_es", "retros", "cah_main"];
+const deckCache = new Map();
+async function deckCards(env, deck) {
+  if (!deck || deck === "classic" || !DECKS.includes(deck)) return IMPRO_TOPICS;
+  if (deckCache.has(deck)) return deckCache.get(deck);
+  try {
+    const r = await fetch(`${siteOrigin(env)}/tools/assets/decks/${deck}.json`, { cf: { cacheTtl: 3600 } });
+    const d = await r.json(); const cards = (d.cards || []).filter(x => typeof x === "string" && x.length < 300);
+    if (cards.length) { deckCache.set(deck, cards); return cards; }
+  } catch {}
+  return IMPRO_TOPICS;
+}
+async function setDeck(request, env, code) {
+  const session = await mustGetSession(env, code);
+  const { deck } = await readJson(request);
+  if (!DECKS.includes(deck)) throw new HttpError(400, "Unknown deck");
+  await env.DB.prepare("UPDATE sessions SET impro_deck = ? WHERE code = ?").bind(deck, session.code).run();
+  return json({ deck });
+}
+async function drawTopic(env, sp) {
+  const session = await mustGetSession(env, sp.session_code);
+  const deck = session.impro_deck || "classic", cards = await deckCards(env, deck);
+  const { results } = await env.DB.prepare("SELECT topic FROM speeches WHERE session_code = ? AND topic IS NOT NULL").bind(sp.session_code).all();
+  const used = new Set(results.map(r => r.topic));
+  const fresh = cards.filter(t => !used.has(t));
+  const topic = pick(fresh.length ? fresh : cards);
+  const shape = topic.includes("_____") ? "Fill in the blank, then defend your answer" : pick(IMPRO_SHAPES);
+  await env.DB.prepare("UPDATE speeches SET topic = ?, shape = ? WHERE id = ?").bind(topic, shape, sp.id).run();
+  return topic;
+}
+async function setImpromptu(request, env, id) {
+  const body = await readJson(request);
+  const on = body.impromptu ? 1 : 0;
+  const r = await env.DB.prepare("UPDATE speeches SET impromptu = ?, topic = CASE WHEN ? = 1 THEN NULL ELSE topic END, shape = NULL WHERE id = ? AND status = 'waiting'").bind(on, on, id).run();
+  if (!r.meta?.changes) throw new HttpError(409, "This speech has already started");
+  return json({ id, impromptu: on });
 }
 
 async function addSpeech(request, env, code) {
@@ -204,6 +275,7 @@ async function setSpeechStatus(env, id, status) {
   const speech = await env.DB.prepare("SELECT * FROM speeches WHERE id = ?").bind(id).first();
   if (!speech) throw new HttpError(404, "Speech not found");
   if (status === "open") {
+    if (speech.impromptu && speech.status === "waiting") await drawTopic(env, speech);   // surprise topic revealed on start
     // only one speech open at a time per session
     await env.DB.batch([
       env.DB.prepare("UPDATE speeches SET status = 'closed', closed_at = datetime('now') WHERE session_code = ? AND status = 'open' AND id != ?").bind(speech.session_code, id),
@@ -238,19 +310,19 @@ async function liveState(request, env, code) {
   const session = await mustGetSession(env, code);
   let speech = null;
   if (session.current_speech_id) {
-    speech = await env.DB.prepare("SELECT id, speaker, status, film, youtube_id, participant_id FROM speeches WHERE id = ? AND status = 'open'")
+    speech = await env.DB.prepare("SELECT id, speaker, status, film, youtube_id, participant_id, topic, shape, impromptu FROM speeches WHERE id = ? AND status = 'open'")
       .bind(session.current_speech_id).first();
   }
   const next = await env.DB.prepare(
     "SELECT speaker FROM speeches WHERE session_code = ? AND status = 'waiting' ORDER BY created_at ASC, rowid ASC LIMIT 1"
   ).bind(session.code).first();
   const out = { session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation", duration: Number(session.timer_duration) || 120 },
-    speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id } : null,
+    speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id, topic: speech.topic, shape: speech.shape, impromptu: !!speech.impromptu } : null,
     next: next ? next.speaker : null, timer: timerState(session) };
   const me = await participantFromRequest(request, env, session.code);
   if (me) {
     const { results: list } = await env.DB.prepare(
-      "SELECT id, speaker, status, film, filmer, participant_id, result_token, topic, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
+      "SELECT id, speaker, status, film, filmer, participant_id, result_token, topic, impromptu, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
     ).bind(session.code).all();
     const plan = await filmingPlan(env, session, list);
     const mine = list.find(x => x.participant_id === me.id);
@@ -259,7 +331,8 @@ async function liveState(request, env, code) {
     const firstWaiting = pending.find(x => x.status === "waiting");
     out.me = {
       id: me.id, name: me.name,
-      speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film, topic: mine.topic } : null,
+      speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film, topic: mine.topic, impromptu: !!mine.impromptu,
+                       self_done: mine.status === "closed" ? !!(await selfFigure(env, mine.id)) : false } : null,
       film: duty ? { speech_id: duty.id, speaker: duty.speaker, when: duty.status === "open" ? "now" : duty.id === firstWaiting?.id ? "next" : "later" } : null,
       camera_person: session.camera_mode === "single" && session.camera_person === me.id,
     };
@@ -290,11 +363,12 @@ async function joinSession(request, env, code) {
   const name = clean(body.name, 60);
   if (!name) throw new HttpError(400, "Please enter your name");
   const speaking = body.speaking !== false, film = body.film === false ? 0 : 1;
-  const topic = clean(body.topic, 120) || null;
+  const impromptu = body.impromptu ? 1 : 0;
+  const topic = impromptu ? null : clean(body.topic, 120) || null;
   let p = await participantFromRequest(request, env, session.code);
   if (p) {
     await env.DB.prepare("UPDATE participants SET name = ? WHERE id = ?").bind(name, p.id).run();
-    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ?, topic = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, topic, p.id).run();
+    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ?, topic = ?, impromptu = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, topic, impromptu, p.id).run();
   } else {
     p = { id: randomId(10), secret: randomId(20) };
     await env.DB.prepare("INSERT INTO participants (id, session_code, name, secret, ord) VALUES (?, ?, ?, ?, ?)")
@@ -303,8 +377,8 @@ async function joinSession(request, env, code) {
   let speech = await env.DB.prepare("SELECT id, status, result_token FROM speeches WHERE participant_id = ?").bind(p.id).first();
   if (speaking && !speech) {
     speech = { id: randomId(10), status: "waiting", result_token: randomId(16) };
-    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(speech.id, session.code, name, speech.result_token, film, p.id, topic).run();
+    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic, impromptu) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(speech.id, session.code, name, speech.result_token, film, p.id, topic, impromptu).run();
   } else if (!speaking && speech && speech.status === "waiting") {
     await env.DB.prepare("DELETE FROM speeches WHERE id = ?").bind(speech.id).run();
     speech = null;
@@ -383,7 +457,7 @@ async function speakerStart(request, env, id) {
     if (cur && cur.status === "open") throw new HttpError(409, "Someone else is speaking right now");
   }
   await setSpeechStatus(env, sp.id, "open");
-  const timer = await startClock(env, sp.session_code, Number(session.timer_duration) || 120);
+  const timer = await startClock(env, sp.session_code, Number(session.timer_duration) || 120, sp.impromptu ? THINK_MS : PREP_MS);
   return json({ ok: true, timer });
 }
 
@@ -490,6 +564,55 @@ async function aggregate(env, speechId) {
   const scores = {};
   for (const k of CRITERIA) scores[k] = row.n ? round1(row[k]) : null;
   return { votes: row.n, scores };
+}
+
+/* ----------------------------------------------------------------- awards */
+/* End-of-night awards for the projector, from tonight's closed speeches. */
+async function sessionAwards(env, code) {
+  const session = await mustGetSession(env, code);
+  const { results: rows } = await env.DB.prepare(
+    `SELECT sp.id, sp.speaker, COUNT(v.voter) AS n, AVG(v.ethos) AS ethos, AVG(v.pathos) AS pathos, AVG(v.logos) AS logos,
+            AVG(v.structure) AS structure, AVG(v.delivery) AS delivery
+       FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
+      WHERE sp.session_code = ? AND sp.status = 'closed' GROUP BY sp.id`
+  ).bind(session.code).all();
+  const sp = rows.filter(r => r.n > 0).map(r => ({ id: r.id, speaker: r.speaker, votes: r.n,
+    scores: Object.fromEntries(CRITERIA.map(k => [k, r[k]])), overall: CRITERIA.reduce((t, k) => t + r[k], 0) / CRITERIA.length }));
+  const awards = [];
+  if (!sp.length) return json({ session: { title: session.title }, awards });
+  const minVotes = Math.min(2, Math.max(...sp.map(x => x.votes)));          // ignore 1-vote speeches when others have more
+  const fair = sp.filter(x => x.votes >= minVotes);
+  const best = (list, f) => list.reduce((a, b) => (f(b) > f(a) ? b : a));
+  const fav = best(fair, x => x.overall);
+  awards.push({ key: "favourite", icon: "🏆", title: "The room's favourite", winner: fav.speaker, detail: `${round1(fav.overall)} / 5 average from ${fav.votes} people` });
+  // most improved: biggest jump vs the same speaker's earlier speeches in their passport
+  let improved = null;
+  for (const x of sp) {
+    const prev = await env.DB.prepare(
+      `SELECT AVG((v.ethos + v.pathos + v.logos + v.structure + v.delivery) / 5.0) AS avg
+         FROM passport_speeches me JOIN passport_speeches ps ON ps.passport_id = me.passport_id
+         JOIN speeches o ON o.id = ps.speech_id AND o.id != me.speech_id AND o.created_at < (SELECT created_at FROM speeches WHERE id = me.speech_id)
+         JOIN votes v ON v.speech_id = o.id
+        WHERE me.speech_id = ?`
+    ).bind(x.id).first();
+    if (prev && prev.avg != null) { const d = x.overall - prev.avg; if (d > 0.05 && (!improved || d > improved.d)) improved = { x, d }; }
+  }
+  if (improved) awards.push({ key: "improved", icon: "📈", title: "Most improved", winner: improved.x.speaker, detail: `+${round1(improved.d)} on their previous average` });
+  // fewest fillers among speeches someone counted
+  const counted = [];
+  for (const x of sp) { const f = await fillerFigure(env, x.id); if (f) counted.push({ x, n: f.count }); }
+  if (counted.length >= 2) { const q = counted.reduce((a, b) => (b.n < a.n ? b : a)); awards.push({ key: "smooth", icon: "🤫", title: "Smoothest talker", winner: q.x.speaker, detail: `only ${q.n} “um”${q.n === 1 ? "" : "s"}` }); }
+  const LABEL = { ethos: ["🤝", "Most trusted", "Ethos"], pathos: ["❤️", "Moved us most", "Pathos"], logos: ["🧠", "Clearest argument", "Logos"],
+                  structure: ["🧱", "Best built speech", "Structure"], delivery: ["🎙️", "Best delivery", "Delivery"] };
+  const won = new Set(awards.map(a => a.winner));
+  if (fair.length >= 2) for (const k of CRITERIA) {
+    // share the spotlight: within 0.5 of the top score, prefer someone without an award yet
+    const top = best(fair, x => x.scores[k]);
+    const fresh = fair.filter(x => !won.has(x.speaker) && x.scores[k] >= top.scores[k] - 0.5);
+    const w = fresh.length ? best(fresh, x => x.scores[k]) : top; won.add(w.speaker);
+    awards.push({ key: k, icon: LABEL[k][0], title: LABEL[k][1], winner: w.speaker, detail: `${LABEL[k][2]} ${round1(w.scores[k])} / 5` });
+  }
+  return json({ session: { title: session.title }, speeches: sp.length, awards });
 }
 
 /* --------------------------------------------------------------- passport */
