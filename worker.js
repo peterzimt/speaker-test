@@ -57,6 +57,7 @@ async function route(request, env) {
   if (a === "speeches" && b && c === "filmer" && m === "POST") { requireHost(request, env); return setFilmer(request, env, b); }
   if (a === "sessions" && b && c === "camera" && m === "POST") { requireHost(request, env); return setCameraMode(request, env, b); }
   if (a === "sessions" && b && c === "shuffle" && m === "POST") { requireHost(request, env); return shuffleCameras(env, b); }
+  if (a === "sessions" && b && c === "technique" && m === "POST") { requireHost(request, env); return setTechnique(request, env, b); }
   if (a === "sessions" && b && c === "deck" && m === "POST") { requireHost(request, env); return setDeck(request, env, b); }
   if (a === "speeches" && b && c === "impromptu" && m === "POST") { requireHost(request, env); return setImpromptu(request, env, b); }
   if (a === "sessions" && b && c === "awards" && m === "GET") { requireHost(request, env); return sessionAwards(env, b); }
@@ -84,6 +85,7 @@ async function route(request, env) {
   if (a === "sessions" && b && c === "join" && m === "POST") return joinSession(request, env, b);
   if (a === "sessions" && b && c === "volunteer" && m === "POST") return volunteer(request, env, b);
   if (a === "speeches" && b && c === "start" && m === "POST") return speakerStart(request, env, b);
+  if (a === "speeches" && b && c === "again" && m === "POST") return speakAgain(request, env, b);
   if (a === "speeches" && b && c === "votes" && m === "POST") return castVote(request, env, b);
   if (a === "speeches" && b && c === "fillers" && m === "POST") return countFillers(request, env, b);
 
@@ -128,14 +130,15 @@ async function listSessions(env) {
 async function getSessionForHost(env, code) {
   const session = await mustGetSession(env, code);
   const { results } = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic, sp.impromptu, sp.shape,
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic, sp.impromptu, sp.shape, sp.focus_roles, sp.parent_id, sp.kind, sp.seconds, (SELECT o.speaker FROM speeches o WHERE o.id = sp.parent_id) AS after,
             COUNT(v.voter) AS votes
        FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
       WHERE sp.session_code = ?
       GROUP BY sp.id ORDER BY sp.created_at ASC, sp.rowid ASC`
   ).bind(session.code).all();
   const plan = await filmingPlan(env, session, results);
-  for (const sp of results) sp.filmed_by = plan.filmerOf[sp.id];
+  const roles = rolePlan(session, results, plan.participants, plan.filmerOf);
+  for (const sp of results) { sp.filmed_by = plan.filmerOf[sp.id]; sp.roles = roles[sp.id]; }
   return json({
     session: { ...session, timer_end: undefined }, speeches: results, timer: timerState(session),
     participants: plan.participants.map(p => ({ id: p.id, name: p.name, speech_id: p.speech_id })),
@@ -295,6 +298,7 @@ async function deleteSpeech(env, id) {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM votes WHERE speech_id = ?").bind(id),
     env.DB.prepare("DELETE FROM filler_counts WHERE speech_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM role_reports WHERE speech_id = ?").bind(id),
     env.DB.prepare("DELETE FROM self_ratings WHERE speech_id = ?").bind(id),
     env.DB.prepare("DELETE FROM uploads WHERE speech_id = ?").bind(id),
     env.DB.prepare("DELETE FROM passport_speeches WHERE speech_id = ?").bind(id),
@@ -310,28 +314,37 @@ async function liveState(request, env, code) {
   const session = await mustGetSession(env, code);
   let speech = null;
   if (session.current_speech_id) {
-    speech = await env.DB.prepare("SELECT id, speaker, status, film, youtube_id, participant_id, topic, shape, impromptu FROM speeches WHERE id = ? AND status = 'open'")
+    speech = await env.DB.prepare("SELECT sp.id, sp.speaker, sp.status, sp.film, sp.youtube_id, sp.participant_id, sp.topic, sp.shape, sp.impromptu, sp.kind, o.speaker AS after FROM speeches sp LEFT JOIN speeches o ON o.id = sp.parent_id WHERE sp.id = ? AND sp.status = 'open'")
       .bind(session.current_speech_id).first();
   }
   const next = await env.DB.prepare(
     "SELECT speaker FROM speeches WHERE session_code = ? AND status = 'waiting' ORDER BY created_at ASC, rowid ASC LIMIT 1"
   ).bind(session.code).first();
-  const out = { session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation", duration: Number(session.timer_duration) || 120 },
-    speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id, topic: speech.topic, shape: speech.shape, impromptu: !!speech.impromptu } : null,
+  const lastClosed = await env.DB.prepare(
+    "SELECT id, speaker, topic FROM speeches WHERE session_code = ? AND status = 'closed' ORDER BY closed_at DESC LIMIT 1"
+  ).bind(session.code).first();
+  const out = { last: lastClosed || null, session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation", duration: Number(session.timer_duration) || 120 },
+    speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id, topic: speech.topic, shape: speech.shape, impromptu: !!speech.impromptu, kind: speech.kind || null, after: speech.after || null } : null,
     next: next ? next.speaker : null, timer: timerState(session) };
   const me = await participantFromRequest(request, env, session.code);
   if (me) {
     const { results: list } = await env.DB.prepare(
-      "SELECT id, speaker, status, film, filmer, participant_id, result_token, topic, impromptu, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
+      "SELECT id, speaker, status, film, filmer, participant_id, result_token, topic, impromptu, focus_roles, parent_id, kind, seconds, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
     ).bind(session.code).all();
     const plan = await filmingPlan(env, session, list);
-    const mine = list.find(x => x.participant_id === me.id);
+    const roles = rolePlan(session, list, plan.participants, plan.filmerOf);
+    const mineAll = list.filter(x => x.participant_id === me.id);
+    const mine = mineAll.find(x => x.status !== "closed") || mineAll[mineAll.length - 1];
     const pending = list.filter(x => x.status !== "closed");
     const duty = pending.find(x => x.status === "open" && plan.filmerOf[x.id]?.id === me.id) || pending.find(x => plan.filmerOf[x.id]?.id === me.id);
     const firstWaiting = pending.find(x => x.status === "waiting");
+    const roleSp = pending.find(x => x.status === "open") || firstWaiting;
+    const myRole = roleSp && (roles[roleSp.id] || []).find(r => r.id === me.id);
     out.me = {
       id: me.id, name: me.name,
+      role: myRole ? { role: myRole.role, speech_id: roleSp.id, speaker: roleSp.speaker, when: roleSp.status === "open" ? "now" : "next" } : null,
       speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film, topic: mine.topic, impromptu: !!mine.impromptu,
+                       kind: mine.kind || null, focus_roles: mine.focus_roles || "", seconds: mine.seconds || null,
                        self_done: mine.status === "closed" ? !!(await selfFigure(env, mine.id)) : false } : null,
       film: duty ? { speech_id: duty.id, speaker: duty.speaker, when: duty.status === "open" ? "now" : duty.id === firstWaiting?.id ? "next" : "later" } : null,
       camera_person: session.camera_mode === "single" && session.camera_person === me.id,
@@ -364,11 +377,12 @@ async function joinSession(request, env, code) {
   if (!name) throw new HttpError(400, "Please enter your name");
   const speaking = body.speaking !== false, film = body.film === false ? 0 : 1;
   const impromptu = body.impromptu ? 1 : 0;
+  const focusRoles = (Array.isArray(body.focus) ? body.focus : []).filter(r => r in ROLES).slice(0, 2).join(",") || null;
   const topic = impromptu ? null : clean(body.topic, 120) || null;
   let p = await participantFromRequest(request, env, session.code);
   if (p) {
     await env.DB.prepare("UPDATE participants SET name = ? WHERE id = ?").bind(name, p.id).run();
-    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ?, topic = ?, impromptu = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, topic, impromptu, p.id).run();
+    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ?, topic = ?, impromptu = ?, focus_roles = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, topic, impromptu, focusRoles, p.id).run();
   } else {
     p = { id: randomId(10), secret: randomId(20) };
     await env.DB.prepare("INSERT INTO participants (id, session_code, name, secret, ord) VALUES (?, ?, ?, ?, ?)")
@@ -377,13 +391,76 @@ async function joinSession(request, env, code) {
   let speech = await env.DB.prepare("SELECT id, status, result_token FROM speeches WHERE participant_id = ?").bind(p.id).first();
   if (speaking && !speech) {
     speech = { id: randomId(10), status: "waiting", result_token: randomId(16) };
-    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic, impromptu) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(speech.id, session.code, name, speech.result_token, film, p.id, topic, impromptu).run();
+    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic, impromptu, focus_roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(speech.id, session.code, name, speech.result_token, film, p.id, topic, impromptu, focusRoles).run();
   } else if (!speaking && speech && speech.status === "waiting") {
     await env.DB.prepare("DELETE FROM speeches WHERE id = ?").bind(speech.id).run();
     speech = null;
   }
   return json({ participant: { id: p.id, secret: p.secret, name }, speech }, 201);
+}
+
+/* ------------------------------------------------------------ audience roles */
+/* Each role watches for one family of speaker habits (the profiles of the speaker test).
+   The display text lives in tools/assets/practice.js; here we only need the keys and the item counts. */
+const ROLES = { um: 0, structure: 5, body: 5, voice: 5, clarity: 4, confidence: 3, energy: 4 };
+const THEME_ROLES = {
+  ethos: ["confidence", "structure"], pathos: ["energy", "voice"], logos: ["structure", "clarity"],
+  "five-canons": ["structure", "body"], "problem-solution-impact": ["structure", "clarity"],
+  "story-message-action": ["structure", "energy"], hooks: ["structure", "energy"], "the-pause": ["um", "voice"],
+  "vocal-variety": ["voice", "um"], "eye-contact-and-space": ["body", "energy"], improvisation: ["structure", "um"],
+  "pitching-yourself": ["clarity", "confidence"],
+};
+const ROLE_ORDER = ["um", "structure", "body", "voice", "clarity", "confidence", "energy"];
+function rolesWanted(session, sp) {
+  const mine = String(sp.focus_roles || "").split(",").filter(r => r in ROLES);
+  const list = [...mine, ...(THEME_ROLES[session.technique] || []), "um", ...ROLE_ORDER];
+  return [...new Set(list)];
+}
+/* Who watches what, for each speech: everyone except the speaker and their filmer, rotating by speech. */
+function rolePlan(session, speeches, participants, filmerOf) {
+  const out = {};
+  speeches.forEach((sp, idx) => {
+    const filmer = filmerOf[sp.id]?.type === "participant" ? filmerOf[sp.id].id : null;
+    const eligible = participants.filter(p => p.id !== sp.participant_id && p.id !== filmer);
+    if (!eligible.length) { out[sp.id] = []; return; }
+    const roles = rolesWanted(session, sp).slice(0, Math.min(eligible.length, 4));
+    out[sp.id] = roles.map((role, k) => { const p = eligible[(idx + k) % eligible.length]; return { role, id: p.id, name: p.name }; });
+  });
+  return out;
+}
+async function setTechnique(request, env, code) {
+  const session = await mustGetSession(env, code);
+  const technique = clean((await readJson(request)).technique, 60) || null;
+  await env.DB.prepare("UPDATE sessions SET technique = ? WHERE code = ?").bind(technique, session.code).run();
+  return json({ technique });
+}
+
+/* Someone in the audience wants a go at the same topic: "I can do better", "different angle", "I want to add
+   something" (30 s, next in line). Creates a speech for them on that topic, linked to the original. */
+const AGAIN_KINDS = { retry: null, angle: null, addon: 30 };
+async function speakAgain(request, env, id) {
+  const src = await env.DB.prepare("SELECT * FROM speeches WHERE id = ?").bind(id).first();
+  if (!src) throw new HttpError(404, "Speech not found");
+  const me = await participantFromRequest(request, env, src.session_code);
+  if (!me) throw new HttpError(401, "Join the session first");
+  const kind = (await readJson(request)).kind;
+  if (!(kind in AGAIN_KINDS)) throw new HttpError(400, "Unknown option");
+  if (src.status === "waiting") throw new HttpError(409, "This speech hasn't started yet");
+  const pending = await env.DB.prepare("SELECT id FROM speeches WHERE participant_id = ? AND status = 'waiting'").bind(me.id).first();
+  if (pending) throw new HttpError(409, "You're already on the speakers list — wait for your turn");
+  const last = await env.DB.prepare("SELECT film FROM speeches WHERE participant_id = ? ORDER BY created_at DESC LIMIT 1").bind(me.id).first();
+  let created = null;                                       // an add-on jumps to the front of the list
+  if (kind === "addon") {
+    const first = await env.DB.prepare("SELECT MIN(created_at) AS t FROM speeches WHERE session_code = ? AND status = 'waiting'").bind(src.session_code).first();
+    if (first?.t) created = (await env.DB.prepare("SELECT datetime(?, '-1 second') AS t").bind(first.t).first()).t;
+  }
+  const nid = randomId(10), token = randomId(16);
+  await env.DB.prepare(
+    `INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic, parent_id, kind, seconds, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`
+  ).bind(nid, src.session_code, me.name, token, last ? last.film : 1, me.id, src.topic || null, src.id, kind, AGAIN_KINDS[kind], created).run();
+  return json({ id: nid, kind, topic: src.topic || null }, 201);
 }
 
 async function filmingPlan(env, session, speeches) {
@@ -457,7 +534,7 @@ async function speakerStart(request, env, id) {
     if (cur && cur.status === "open") throw new HttpError(409, "Someone else is speaking right now");
   }
   await setSpeechStatus(env, sp.id, "open");
-  const timer = await startClock(env, sp.session_code, Number(session.timer_duration) || 120, sp.impromptu ? THINK_MS : PREP_MS);
+  const timer = await startClock(env, sp.session_code, Number(sp.seconds) || Number(session.timer_duration) || 120, sp.impromptu ? THINK_MS : PREP_MS);
   return json({ ok: true, timer });
 }
 
@@ -495,14 +572,24 @@ async function castVote(request, env, speechId) {
   }
   const worked = clean(body.worked, MAX_TEXT) || null;
   const nextRep = clean(body.next_rep, MAX_TEXT) || null;
+  const focus = Number.isInteger(Number(body.focus)) && body.focus >= 1 && body.focus <= 5 ? Number(body.focus) : null;
+  if (body.role && body.role.role in ROLES) {                 // the voter's role checklist for this speech
+    const r = body.role, n = ROLES[r.role];
+    const items = Array.from({ length: n }, (_, i) => { const v = Number(r.items?.[i]); return [0, 1, 2].includes(v) ? v : null; });
+    const count = Number.isInteger(Number(r.count)) ? Math.max(0, Math.min(999, Number(r.count))) : null;
+    await env.DB.prepare(
+      `INSERT INTO role_reports (speech_id, voter, role, data, note) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (speech_id, voter, role) DO UPDATE SET data = excluded.data, note = excluded.note, created_at = datetime('now')`
+    ).bind(speechId, voter, r.role, JSON.stringify({ items, count }), clean(r.note, MAX_TEXT) || null).run();
+  }
   await env.DB.prepare(
-    `INSERT INTO votes (speech_id, voter, ethos, pathos, logos, structure, delivery, worked, next_rep)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO votes (speech_id, voter, ethos, pathos, logos, structure, delivery, worked, next_rep, focus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (speech_id, voter) DO UPDATE SET
        ethos = excluded.ethos, pathos = excluded.pathos, logos = excluded.logos,
        structure = excluded.structure, delivery = excluded.delivery,
-       worked = excluded.worked, next_rep = excluded.next_rep, created_at = datetime('now')`
-  ).bind(speechId, voter, scores.ethos, scores.pathos, scores.logos, scores.structure, scores.delivery, worked, nextRep).run();
+       worked = excluded.worked, next_rep = excluded.next_rep, focus = excluded.focus, created_at = datetime('now')`
+  ).bind(speechId, voter, scores.ethos, scores.pathos, scores.logos, scores.structure, scores.delivery, worked, nextRep, focus).run();
   return json({ ok: true });
 }
 
@@ -534,7 +621,7 @@ async function fillerFigure(env, speechId) {
 
 async function speechResults(request, env, id, token) {
   const speech = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.youtube_id, s.title, s.technique, s.code
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.youtube_id, sp.topic, sp.kind, sp.parent_id, s.title, s.technique, s.code
        FROM speeches sp JOIN sessions s ON s.code = sp.session_code WHERE sp.id = ?`
   ).bind(id).first();
   if (!speech) throw new HttpError(404, "Speech not found");
@@ -546,13 +633,34 @@ async function speechResults(request, env, id, token) {
   ).bind(id).all();
   return json({
     speech: { id: speech.id, speaker: speech.speaker, status: speech.status, date: speech.created_at,
-              session: speech.title, technique: speech.technique, youtube_id: speech.youtube_id || null },
+              session: speech.title, technique: speech.technique, youtube_id: speech.youtube_id || null,
+              topic: speech.topic || null, kind: speech.kind || null },
     ...results,
     self: await selfFigure(env, id),
     fillers: await fillerFigure(env, id),
+    focus: await focusFigure(env, id),
+    roles: await roleReports(env, id),
+    previous: await previousAttempt(env, speech),
     worked: comments.map(c => c.worked).filter(Boolean),
     next_rep: comments.map(c => c.next_rep).filter(Boolean),
   });
+}
+
+async function focusFigure(env, id) {
+  const r = await env.DB.prepare("SELECT COUNT(focus) AS n, AVG(focus) AS avg FROM votes WHERE speech_id = ?").bind(id).first();
+  return r && r.n ? { avg: round1(r.avg), votes: r.n } : null;
+}
+async function roleReports(env, id) {
+  const { results } = await env.DB.prepare("SELECT role, data, note FROM role_reports WHERE speech_id = ? ORDER BY created_at").bind(id).all();
+  return results.map(r => ({ role: r.role, note: r.note, ...JSON.parse(r.data || "{}") }));
+}
+/* For a follow-up ("I can do better" etc.): the original speech it answers, to compare. */
+async function previousAttempt(env, speech) {
+  if (!speech.parent_id) return null;
+  const prev = await env.DB.prepare("SELECT id, speaker, kind FROM speeches WHERE id = ?").bind(speech.parent_id).first();
+  if (!prev) return null;
+  const agg = await aggregate(env, prev.id);
+  return agg.votes ? { id: prev.id, speaker: prev.speaker, kind: prev.kind || null, ...agg, fillers: (await fillerFigure(env, prev.id))?.count ?? null } : null;
 }
 
 async function aggregate(env, speechId) {
@@ -601,6 +709,12 @@ async function sessionAwards(env, code) {
   // fewest fillers among speeches someone counted
   const counted = [];
   for (const x of sp) { const f = await fillerFigure(env, x.id); if (f) counted.push({ x, n: f.count }); }
+  const focusRows = [];
+  for (const x of fair) { const f = await focusFigure(env, x.id); if (f) focusRows.push({ x, f }); }
+  if (focusRows.length >= 2 && session.technique) {
+    const w = focusRows.reduce((a, b) => (b.f.avg > a.f.avg ? b : a));
+    awards.push({ key: "theme", icon: "🎯", title: "Theme champion", winner: w.x.speaker, detail: `${w.f.avg} / 5 on tonight's theme` });
+  }
   if (counted.length >= 2) { const q = counted.reduce((a, b) => (b.n < a.n ? b : a)); awards.push({ key: "smooth", icon: "🤫", title: "Smoothest talker", winner: q.x.speaker, detail: `only ${q.n} “um”${q.n === 1 ? "" : "s"}` }); }
   const LABEL = { ethos: ["🤝", "Most trusted", "Ethos"], pathos: ["❤️", "Moved us most", "Pathos"], logos: ["🧠", "Clearest argument", "Logos"],
                   structure: ["🧱", "Best built speech", "Structure"], delivery: ["🎙️", "Best delivery", "Delivery"] };
