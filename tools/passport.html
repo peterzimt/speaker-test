@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1B1426">
+<title>Speaker Passport | Aristotl.es</title>
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .wrap { max-width: 900px; }
+  .hero { display: grid; grid-template-columns: 150px 1fr; gap: 22px; align-items: center; }
+  .avatar svg { width: 150px; height: 150px; display: block; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat { text-align: center; padding: 16px 8px; }
+  .stat .n { font: 600 38px/1 Fraunces, serif; color: var(--gold-bright); }
+  .stat .l { font-size: 12.5px; color: var(--on-dark-soft); margin-top: 6px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge { border: 1px solid var(--card-line); border-radius: 999px; padding: 8px 12px; font-size: 13.5px; opacity: .35; }
+  .badge.on { opacity: 1; border-color: var(--line); background: rgba(233,184,92,.08); }
+  .hist { display: grid; gap: 8px; }
+  .h-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--card-line); border-radius: 14px; text-decoration: none; color: inherit; }
+  .h-item:hover { border-color: var(--line); }
+  .dots { display: flex; gap: 4px; }
+  .dots i { width: 8px; border-radius: 4px; display: block; align-self: flex-end; }
+  .trend { width: 100%; height: auto; display: block; }
+  .linkbox { font: 12.5px/1.4 "Space Mono", monospace; word-break: break-all; background: rgba(0,0,0,.25); border-radius: 10px; padding: 10px 12px; }
+  .qr-sm { width: 132px; background: var(--paper); padding: 8px; border-radius: 12px; flex: none; }
+  .qr-sm svg { width: 100%; display: block; }
+  @media (max-width: 600px) { .hero { grid-template-columns: 1fr; text-align: center; } .avatar svg { margin: 0 auto; width: 120px; height: 120px; } .stat .n { font-size: 30px; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="/speaker-profile-quiz.html">The test</a><a href="/meetup.html">Madrid meetup</a></nav>
+</header>
+
+<main class="wrap stack">
+  <div id="err" class="notice err hidden"></div>
+
+  <!-- create -->
+  <section id="create" class="narrow card stack hidden" style="margin: 24px auto">
+    <div class="kicker">Speaker passport</div>
+    <h1>Every speech, <em>one place</em></h1>
+    <p class="soft">Your passport collects the feedback cards from each meetup, so you can see your radar grow. No account, no email — just a private link you keep.</p>
+    <form id="createForm" class="stack">
+      <div><label for="nameIn">Your name</label><input id="nameIn" type="text" maxlength="60" required></div>
+      <div><label for="profIn">Your speaker profile <span class="soft">(optional — from the test)</span></label><select id="profIn"><option value="">I haven't taken the test yet</option></select></div>
+      <button class="btn block" type="submit">Create my passport</button>
+    </form>
+    <p class="small soft">Already have one? Open the private link you saved, or scan your passport QR code.</p>
+  </section>
+
+  <!-- passport -->
+  <section id="pp" class="stack hidden">
+    <div class="card hero">
+      <div class="avatar" id="avatar"></div>
+      <div>
+        <div class="kicker">Speaker passport</div>
+        <h1 id="ppName" style="margin-bottom: 6px"></h1>
+        <div id="profLine" class="soft"></div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="card stat"><div class="n" id="stSpeeches">0</div><div class="l">speeches</div></div>
+      <div class="card stat"><div class="n" id="stTech">0</div><div class="l">techniques practised</div></div>
+      <div class="card stat"><div class="n" id="stReviews">0</div><div class="l">pieces of feedback</div></div>
+    </div>
+
+    <div id="empty" class="card stack hidden">
+      <h3>Your first stamp is waiting</h3>
+      <p class="soft" style="margin:0">Give a speech at the next meetup, scan your feedback card at the end, and tap “Add to my passport”.</p>
+      <div><a class="btn small" href="/meetup.html">See the meetup →</a></div>
+    </div>
+
+    <div id="progress" class="grid2 hidden">
+      <div class="card">
+        <div class="kicker">Your radar</div>
+        <div id="radar"></div>
+        <p class="small soft" id="radarNote" style="margin: 0"></p>
+      </div>
+      <div class="card stack">
+        <div class="kicker">Over time</div>
+        <div id="trend"></div>
+        <div class="row small" id="legend"></div>
+      </div>
+    </div>
+
+    <div id="nextRep" class="paper stack hidden">
+      <div class="kicker" style="color: var(--on-paper-soft)">Your next rep</div>
+      <p id="nextRepText" style="font: 500 19px/1.4 Fraunces, serif; margin: 0"></p>
+    </div>
+
+    <div class="card stack">
+      <div class="kicker">Milestones</div>
+      <div class="badges" id="badges"></div>
+    </div>
+
+    <div class="card stack" id="histCard">
+      <div class="kicker">Stamps</div>
+      <div class="hist" id="hist"></div>
+    </div>
+
+    <div class="card stack">
+      <div class="kicker">Keep your passport</div>
+      <div class="row" style="align-items: flex-start; gap: 16px">
+        <div class="qr-sm" id="ppQr"></div>
+        <div class="stack" style="flex: 1; min-width: 220px">
+          <p class="soft small" style="margin:0">This private link is your passport. Bookmark it or send it to yourself — anyone with the link can see it.</p>
+          <div class="linkbox" id="ppLink"></div>
+          <div class="row">
+            <button class="btn small" id="copyBtn" type="button">Copy link</button>
+            <a class="btn ghost small" id="mailBtn" href="#">Email it to me</a>
+          </div>
+        </div>
+      </div>
+      <details>
+        <summary class="small soft" style="cursor: pointer">Edit name or profile</summary>
+        <form id="editForm" class="stack" style="margin-top: 12px">
+          <div><label for="editName">Name</label><input id="editName" type="text" maxlength="60" required></div>
+          <div><label for="editProf">Speaker profile</label><select id="editProf"><option value="">Not set</option></select></div>
+          <button class="btn small" type="submit">Save</button>
+        </form>
+      </details>
+    </div>
+  </section>
+</main>
+<footer class="footer">aristotl.es · <a href="/speaker-profile-quiz.html">Find your speaker profile</a> · <a href="/coaching.html">1-to-1 coaching</a></footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/qrcode.js"></script>
+<script src="assets/techniques.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(async () => {
+  const { $, esc, api, param, CRITERIA, radarSvg, fmtDate, passport, qrSvg, loadCharacters } = AT;
+  const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
+  const fail = (m) => { $("#err").textContent = m; $("#err").classList.toggle("hidden", !m); };
+  const chars = await loadCharacters();
+
+  const profileOptions = chars ? chars.groups.map(g => `<optgroup label="${esc(g.name)}">${chars.profiles.filter(p => p.g === g.id).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</optgroup>`).join("") : "";
+  $("#profIn").insertAdjacentHTML("beforeend", profileOptions);
+  $("#editProf").insertAdjacentHTML("beforeend", profileOptions);
+  if (!chars) { $("#profIn").closest("div").classList.add("hidden"); $("#editProf").closest("div").classList.add("hidden"); }
+
+  let id = param("id"), k = param("k");
+  if (!id || !k) { const mine = passport.get(); if (mine) { id = mine.id; k = mine.secret; } }
+  if (param("p")) $("#profIn").value = param("p");
+  if (!id || !k) { $("#create").classList.remove("hidden"); return; }
+  await load();
+
+  async function load() {
+    let d;
+    try { d = await api(`/passports/${encodeURIComponent(id)}?k=${encodeURIComponent(k)}`); }
+    catch (ex) {
+      if (ex.status === 404) { const mine = passport.get(); if (mine && mine.id === id) passport.clear(); fail("We couldn't find this passport. Check the link, or create a new one below."); $("#create").classList.remove("hidden"); return; }
+      return fail(ex.message);
+    }
+    render(d);
+  }
+
+  function render({ passport: p, speeches }) {
+    passport.set({ id: p.id, secret: k, name: p.name });
+    history.replaceState(null, "", `?id=${p.id}&k=${k}`);
+    $("#pp").classList.remove("hidden"); $("#create").classList.add("hidden"); fail("");
+    document.title = `${p.name}'s Speaker Passport | Aristotl.es`;
+    $("#ppName").innerHTML = `${esc(p.name)}<em>'s</em> passport`;
+
+    const prof = chars && p.profile ? chars.byId[p.profile] : null;
+    if (prof) {
+      $("#avatar").innerHTML = chars.draw(prof);
+      $("#profLine").innerHTML = `<span class="chip" style="background:${prof.group.color}22;color:${prof.group.color}">${esc(prof.group.name)}</span> <strong style="color:var(--on-dark)">${esc(prof.name)}</strong> — ${esc(prof.tag)}`;
+      $("#nextRepText").textContent = prof.cue; $("#nextRep").classList.remove("hidden");
+    } else {
+      $("#avatar").innerHTML = `<svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="94" fill="#E9B85C" fill-opacity=".13" stroke="#E9B85C" stroke-width="3"/><text x="100" y="124" text-anchor="middle" font-family="Fraunces, serif" font-size="72" font-weight="600" fill="#F2D08A">${esc(p.name.slice(0, 1).toUpperCase())}</text></svg>`;
+      $("#profLine").innerHTML = `No speaker profile yet. <a href="/speaker-profile-quiz.html">Take the free test</a>, then add it below.`;
+      $("#nextRep").classList.add("hidden");
+    }
+    $("#editName").value = p.name; $("#editProf").value = p.profile || "";
+
+    const scored = speeches.filter(s => s.votes);
+    const techs = new Set(speeches.map(s => s.technique).filter(Boolean));
+    const reviews = speeches.reduce((a, s) => a + s.votes, 0);
+    $("#stSpeeches").textContent = speeches.length; $("#stTech").textContent = techs.size; $("#stReviews").textContent = reviews;
+    $("#stSpeeches").nextElementSibling.textContent = speeches.length === 1 ? "speech" : "speeches";
+    $("#stTech").nextElementSibling.textContent = techs.size === 1 ? "technique practised" : "techniques practised";
+    $("#empty").classList.toggle("hidden", speeches.length > 0);
+    $("#histCard").classList.toggle("hidden", !speeches.length);
+    $("#progress").classList.toggle("hidden", !scored.length);
+
+    if (scored.length) {
+      const avg = (list) => Object.fromEntries(CRITERIA.map(c => { const v = list.map(s => s.scores[c.key]).filter(x => x != null); return [c.key, v.length ? v.reduce((a, b) => a + b, 0) / v.length : null]; }));
+      const recent = avg(scored.slice(-3)), first = avg(scored.slice(0, Math.min(3, scored.length)));
+      const showCompare = scored.length >= 4;
+      $("#radar").innerHTML = radarSvg(recent, { size: 340, compare: showCompare ? first : null });
+      $("#radarNote").textContent = showCompare ? "Gold: your last 3 speeches. Dotted: your first 3." : scored.length > 1 ? `Average of your ${Math.min(3, scored.length)} most recent speeches.` : "Your first speech. The next ones will show how it moves.";
+      // trend chart
+      const W = 420, Hh = 200, pad = 26, n = scored.length;
+      const X = i => n === 1 ? W / 2 : pad + i * (W - pad * 2) / (n - 1), Y = v => Hh - pad - (v - 1) / 4 * (Hh - pad * 2);
+      let g = "";
+      [1, 2, 3, 4, 5].forEach(v => g += `<line x1="${pad}" x2="${W - pad}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(237,230,242,.08)"/><text x="${pad - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="#A99FB5" font-family="Space Mono">${v}</text>`);
+      CRITERIA.forEach(c => {
+        const pts = scored.map((s, i) => s.scores[c.key] == null ? null : [X(i), Y(s.scores[c.key])]).filter(Boolean);
+        if (pts.length > 1) g += `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${c.hex}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+        pts.forEach(p => g += `<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="${c.hex}"/>`);
+      });
+      $("#trend").innerHTML = n < 2
+        ? `<p class="soft small">Your progress curve appears after your second speech.</p>`
+        : `<svg class="trend" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Scores over time">${g}</svg>`;
+      $("#legend").innerHTML = CRITERIA.map(c => `<span class="crit"><i style="background:${c.hex}"></i>${c.label}</span>`).join("");
+    }
+
+    // milestones
+    const best = Math.max(0, ...scored.flatMap(s => Object.values(s.scores).filter(v => v != null)));
+    const badges = [
+      ["🎤", "First speech", speeches.length >= 1],
+      ["🔥", "5 speeches", speeches.length >= 5],
+      ["🏛️", "10 speeches", speeches.length >= 10],
+      ["🧭", "3 techniques", techs.size >= 3],
+      ["📜", "6 techniques", techs.size >= 6],
+      ["⭐", "A 4.5+ score", best >= 4.5],
+      ["🪞", "Know your profile", !!p.profile],
+    ];
+    $("#badges").innerHTML = badges.map(([e, l, on]) => `<span class="badge ${on ? "on" : ""}">${e} ${l}</span>`).join("");
+
+    // history
+    $("#hist").innerHTML = speeches.slice().reverse().map(s => {
+      const t = techBySlug[s.technique];
+      const bars = CRITERIA.map(c => `<i style="height:${Math.max(3, (s.scores[c.key] || 0) * 5)}px;background:${c.hex}"></i>`).join("");
+      return `<a class="h-item" href="speech.html?id=${s.id}&k=${s.token}"><span><strong>${fmtDate(s.date)}</strong> · ${esc(s.session)}<br><span class="small soft">${t ? esc(t.title) + " · " : ""}${s.votes} feedback</span></span><span class="dots">${bars}</span></a>`;
+    }).join("");
+
+    // keep link
+    const link = passport.link({ id: p.id, secret: k });
+    $("#ppLink").textContent = link; $("#ppQr").innerHTML = qrSvg(link);
+    $("#mailBtn").href = `mailto:?subject=${encodeURIComponent("My Aristotl.es speaker passport")}&body=${encodeURIComponent("My private passport link:\n" + link)}`;
+  }
+
+  $("#copyBtn").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("#ppLink").textContent); $("#copyBtn").textContent = "Copied ✓"; setTimeout(() => $("#copyBtn").textContent = "Copy link", 1800); }
+    catch { prompt("Copy your link:", $("#ppLink").textContent); }
+  });
+  $("#editForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { await api(`/passports/${id}`, { method: "PATCH", body: { k, name: $("#editName").value, profile: $("#editProf").value } }); await load(); }
+    catch (ex) { alert(ex.message); }
+  });
+})();
+
+// create form (works even before a passport exists)
+document.getElementById("createForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = e.submitter; btn.disabled = true;
+  try {
+    const p = await AT.api("/passports", { method: "POST", body: { name: AT.$("#nameIn").value, profile: AT.$("#profIn").value } });
+    AT.passport.set(p);
+    location.href = `passport.html?id=${p.id}&k=${p.secret}`;
+  } catch (ex) { alert(ex.message); btn.disabled = false; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1B1426">
+<title>Live Feedback — Host | Aristotl.es</title>
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .host-grid { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 22px; align-items: start; }
+  .qrbox { background: var(--paper); border-radius: 18px; padding: 18px; text-align: center; color: var(--on-paper); }
+  .qrbox svg { width: 100%; max-width: 320px; display: block; margin: 0 auto; border-radius: 8px; }
+  .code { font: 700 40px/1 "Space Mono", monospace; letter-spacing: .14em; color: var(--on-paper); margin-top: 10px; }
+  .url { font: 12.5px/1.4 "Space Mono", monospace; color: var(--on-paper-soft); word-break: break-all; }
+  .now { text-align: center; padding: 26px 18px; }
+  .now .name { font: 600 clamp(28px, 4vw, 44px)/1.1 Fraunces, serif; margin: 6px 0; }
+  .count { font: 700 64px/1 Fraunces, serif; color: var(--gold-bright); }
+  .q-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .q-item.open { border-color: rgba(79,182,166,.6); background: rgba(79,182,166,.07); }
+  .q-item .who { font-weight: 600; }
+  .q-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .overlay { position: fixed; inset: 0; background: rgba(21,15,31,.94); backdrop-filter: blur(6px); z-index: 50; overflow: auto; padding: 24px 16px; }
+  .overlay .inner { max-width: 1000px; margin: 0 auto; }
+  .res-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: center; }
+  .comment { background: rgba(255,255,255,.04); border-left: 3px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 15px; }
+  .comment.next { border-left-color: var(--c-delivery); }
+  .mini-qr { width: 120px; background: var(--paper); padding: 8px; border-radius: 12px; }
+  .mini-qr svg { width: 100%; display: block; }
+  body.projector .topbar, body.projector .host-tools { display: none; }
+  body.projector .host-grid { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 860px) { .host-grid, .res-grid, body.projector .host-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="index.html">Tools</a><a class="on" href="live.html">Live feedback</a><a href="impro.html">Impro wheel</a></nav>
+</header>
+
+<main class="wrap">
+  <!-- 1. Login -->
+  <section id="login" class="narrow card stack hidden" style="margin: 40px auto">
+    <div class="kicker">Host console</div>
+    <h1>Live <em>feedback</em></h1>
+    <p class="soft">Enter the host password you set in Cloudflare. It stays on this device only.</p>
+    <form id="loginForm" class="stack">
+      <div><label for="hostKey">Host password</label><input id="hostKey" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit">Enter</button>
+      <div id="loginErr" class="notice err hidden"></div>
+    </form>
+  </section>
+
+  <!-- 2. Pick or start a session -->
+  <section id="setup" class="mid hidden" style="margin: 20px auto">
+    <div class="kicker">Host console</div>
+    <h1>Start tonight's <em>session</em></h1>
+    <form id="newForm" class="card stack">
+      <div><label for="title">Session name</label><input id="title" type="text" maxlength="80" placeholder="e.g. Week 12 — Hooks"></div>
+      <div><label for="technique">Technique of the week</label><select id="technique"><option value="">— None —</option></select></div>
+      <button class="btn" type="submit">Start session →</button>
+    </form>
+    <div id="recentWrap" class="stack hidden" style="margin-top: 26px">
+      <h3>Or resume a recent session</h3>
+      <div id="recent" class="stack"></div>
+    </div>
+    <p class="small soft" style="margin-top: 24px"><a href="#" id="logout">Sign out of the host console</a></p>
+  </section>
+
+  <!-- 3. Live session -->
+  <section id="session" class="hidden">
+    <div class="row host-tools" style="justify-content: space-between; margin-bottom: 18px">
+      <div>
+        <div class="kicker" id="sTech">Session</div>
+        <h2 id="sTitle" style="margin: 0"></h2>
+      </div>
+      <div class="row">
+        <button class="btn ghost small" id="projBtn" type="button">Projector mode</button>
+        <button class="btn ghost small" id="leaveBtn" type="button">Change session</button>
+      </div>
+    </div>
+
+    <div class="host-grid">
+      <div class="stack">
+        <div class="qrbox">
+          <div class="kicker" style="color: var(--on-paper-soft)">Scan to give feedback</div>
+          <div id="qr"></div>
+          <div class="code" id="sCode"></div>
+          <div class="url" id="sUrl"></div>
+        </div>
+        <div class="card now" id="nowBox">
+          <span class="chip" id="nowChip">Waiting</span>
+          <div class="name" id="nowName">No one on stage yet</div>
+          <div class="count" id="nowCount">–</div>
+          <div class="soft small">feedback received</div>
+        </div>
+      </div>
+
+      <div class="stack host-tools">
+        <form id="addForm" class="card row" autocomplete="off">
+          <input id="speaker" type="text" maxlength="60" placeholder="Next speaker's first name" style="flex: 1; min-width: 160px" required>
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <div id="queue" class="stack"></div>
+        <p class="small soft">Tip: open voting when a speaker starts, close it a minute after they finish, then show the results and let them scan their personal card.</p>
+      </div>
+    </div>
+    <div id="sessErr" class="notice err hidden" style="margin-top: 16px"></div>
+  </section>
+</main>
+
+<!-- results overlay -->
+<div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="inner">
+    <div class="row" style="justify-content: space-between; margin-bottom: 8px">
+      <div class="kicker" id="rKicker">Feedback</div>
+      <button class="btn ghost small" id="closeOverlay" type="button">Close ✕</button>
+    </div>
+    <h1 id="rName"></h1>
+    <div class="res-grid">
+      <div id="rRadar"></div>
+      <div class="stack">
+        <div class="soft" id="rCount"></div>
+        <div class="row" style="gap: 16px; align-items: flex-start">
+          <div class="mini-qr" id="rQr"></div>
+          <div class="small soft" style="flex: 1; min-width: 160px">
+            <strong style="color: var(--on-dark)">Speaker: scan this</strong> to keep your feedback card and add it to your speaker passport.
+          </div>
+        </div>
+        <button class="btn ghost small" id="toggleComments" type="button">Show written comments</button>
+        <div id="rComments" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">aristotl.es · live tools</footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/qrcode.js"></script>
+<script src="assets/techniques.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(() => {
+  const { $, esc, api, store, qrSvg, radarSvg, siteUrl } = AT;
+  const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
+  let code = null, timer = null, lastQueueKey = "";
+
+  function show(id) { ["login", "setup", "session"].forEach(s => $("#" + s).classList.toggle("hidden", s !== id)); }
+  function err(el, msg) { el.textContent = msg; el.classList.toggle("hidden", !msg); }
+
+  // technique list
+  $("#technique").insertAdjacentHTML("beforeend", (window.TECHNIQUES || []).map(t => `<option value="${t.slug}">${esc(t.title)} — ${esc(t.track)}</option>`).join(""));
+
+  /* ---------- login ---------- */
+  async function start() {
+    if (!store.get("aristotles.hostKey")) return show("login");
+    try { await api("/host/check", { method: "POST", host: true }); }
+    catch (e) { if (e.status === 401) { store.del("aristotles.hostKey"); return show("login"); } }
+    const resume = new URLSearchParams(location.search).get("s") || store.get("aristotles.hostSession");
+    if (resume) return openSession(resume);
+    loadSetup();
+  }
+  $("#loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    store.set("aristotles.hostKey", $("#hostKey").value.trim());
+    try { await api("/host/check", { method: "POST", host: true }); err($("#loginErr"), ""); loadSetup(); }
+    catch (ex) { store.del("aristotles.hostKey"); err($("#loginErr"), ex.message); }
+  });
+  $("#logout").addEventListener("click", (e) => { e.preventDefault(); store.del("aristotles.hostKey"); store.del("aristotles.hostSession"); show("login"); });
+
+  /* ---------- setup ---------- */
+  async function loadSetup() {
+    show("setup");
+    try {
+      const { sessions } = await api("/sessions", { host: true });
+      $("#recentWrap").classList.toggle("hidden", !sessions.length);
+      $("#recent").innerHTML = sessions.slice(0, 6).map(s => `
+        <button class="q-item" style="cursor:pointer;text-align:left;background:none;color:inherit;font:inherit" data-code="${esc(s.code)}">
+          <span><span class="who">${esc(s.title)}</span><br><span class="small soft">${AT.fmtDate(s.created_at)} · ${s.speeches} speech${s.speeches == 1 ? "" : "es"}${s.technique && techBySlug[s.technique] ? " · " + esc(techBySlug[s.technique].title) : ""}</span></span>
+          <span class="mono">${esc(s.code)} →</span>
+        </button>`).join("");
+      AT.$$("#recent [data-code]").forEach(b => b.addEventListener("click", () => openSession(b.dataset.code)));
+    } catch {}
+  }
+  $("#newForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      const s = await api("/sessions", { method: "POST", host: true, body: { title: $("#title").value.trim(), technique: $("#technique").value } });
+      openSession(s.code);
+    } catch (ex) { alert(ex.message); } finally { btn.disabled = false; }
+  });
+
+  /* ---------- session ---------- */
+  async function openSession(c) {
+    code = String(c).toUpperCase();
+    store.set("aristotles.hostSession", code);
+    history.replaceState(null, "", "?s=" + code);
+    const voteUrl = siteUrl("vote.html?c=" + code);
+    $("#qr").innerHTML = qrSvg(voteUrl);
+    $("#sCode").textContent = code;
+    $("#sUrl").textContent = voteUrl.replace(/^https?:\/\//, "");
+    show("session");
+    lastQueueKey = "";
+    await refresh();
+    clearInterval(timer);
+    timer = setInterval(() => { if (!document.hidden) refresh(); }, 3000);
+  }
+  $("#leaveBtn").addEventListener("click", () => { clearInterval(timer); store.del("aristotles.hostSession"); history.replaceState(null, "", location.pathname); loadSetup(); });
+
+  async function refresh() {
+    try {
+      const { session, speeches } = await api("/sessions/" + code, { host: true });
+      err($("#sessErr"), "");
+      const t = techBySlug[session.technique];
+      $("#sTitle").textContent = session.title;
+      $("#sTech").textContent = t ? "Technique of the week · " + t.title : "Session " + session.code;
+      renderNow(speeches.find(s => s.status === "open"));
+      renderQueue(speeches);
+    } catch (ex) {
+      if (ex.status === 404) { store.del("aristotles.hostSession"); clearInterval(timer); loadSetup(); return; }
+      err($("#sessErr"), ex.message);
+    }
+  }
+
+  function renderNow(s) {
+    $("#nowChip").className = "chip" + (s ? " live" : "");
+    $("#nowChip").textContent = s ? "Voting open" : "Waiting";
+    $("#nowName").textContent = s ? s.speaker : "No one on stage yet";
+    $("#nowCount").textContent = s ? s.votes : "–";
+  }
+
+  function renderQueue(list) {
+    const key = JSON.stringify(list.map(s => [s.id, s.status, s.votes]));
+    if (key === lastQueueKey) return;
+    lastQueueKey = key;
+    $("#queue").innerHTML = list.length ? list.map(s => `
+      <div class="q-item ${s.status === "open" ? "open" : ""}">
+        <div><span class="who">${esc(s.speaker)}</span><br>
+          <span class="small soft">${s.status === "open" ? "Voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}</span></div>
+        <div class="q-actions">
+          ${s.status === "open"
+            ? `<button class="btn small" data-act="close" data-id="${s.id}">Close voting</button>`
+            : `<button class="btn ${s.status === "waiting" ? "" : "ghost"} small" data-act="open" data-id="${s.id}">${s.status === "waiting" ? "Open voting" : "Reopen"}</button>`}
+          ${s.votes ? `<button class="btn ghost small" data-act="results" data-id="${s.id}" data-k="${s.result_token}">Results</button>` : ""}
+          <button class="btn danger small" data-act="delete" data-id="${s.id}" title="Remove" aria-label="Remove ${esc(s.speaker)}">✕</button>
+        </div>
+      </div>`).join("") : `<div class="card soft small">No speakers yet. Add the first name above.</div>`;
+  }
+
+  $("#queue").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const { act, id } = b.dataset;
+    if (act === "results") return showResults(id, b.dataset.k);
+    if (act === "delete" && !confirm("Remove this speaker and their feedback?")) return;
+    b.disabled = true;
+    try {
+      if (act === "delete") await api("/speeches/" + id, { method: "DELETE", host: true });
+      else await api(`/speeches/${id}/${act}`, { method: "POST", host: true });
+      lastQueueKey = ""; await refresh();
+      if (act === "close") { const s = await api("/sessions/" + code, { host: true }); const sp = s.speeches.find(x => x.id === id); if (sp && sp.votes) showResults(id, sp.result_token); }
+    } catch (ex) { alert(ex.message); b.disabled = false; }
+  });
+
+  $("#addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("#speaker").value.trim(); if (!name) return;
+    try { await api(`/sessions/${code}/speeches`, { method: "POST", host: true, body: { speaker: name } }); $("#speaker").value = ""; lastQueueKey = ""; refresh(); }
+    catch (ex) { alert(ex.message); }
+  });
+
+  /* ---------- results ---------- */
+  async function showResults(id, k) {
+    try {
+      const r = await api(`/speeches/${id}/results?k=${encodeURIComponent(k)}`);
+      $("#rName").innerHTML = esc(r.speech.speaker) + " — <em>the room's view</em>";
+      $("#rKicker").textContent = "Feedback" + (r.speech.technique && techBySlug[r.speech.technique] ? " · " + techBySlug[r.speech.technique].title : "");
+      $("#rRadar").innerHTML = radarSvg(r.scores, { size: 420 });
+      $("#rCount").textContent = `${r.votes} ${r.votes == 1 ? "person" : "people"} gave feedback`;
+      $("#rQr").innerHTML = qrSvg(siteUrl(`speech.html?id=${id}&k=${k}`));
+      const c = r.worked.map(t => `<div class="comment">✓ ${esc(t)}</div>`).join("") + r.next_rep.map(t => `<div class="comment next">→ ${esc(t)}</div>`).join("");
+      $("#rComments").innerHTML = c || `<p class="soft small">No written comments.</p>`;
+      $("#rComments").classList.add("hidden");
+      $("#toggleComments").textContent = "Show written comments";
+      $("#overlay").classList.remove("hidden");
+    } catch (ex) { alert(ex.message); }
+  }
+  $("#toggleComments").addEventListener("click", () => {
+    const h = $("#rComments").classList.toggle("hidden");
+    $("#toggleComments").textContent = h ? "Show written comments" : "Hide written comments";
+  });
+  $("#closeOverlay").addEventListener("click", () => $("#overlay").classList.add("hidden"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#overlay").classList.add("hidden"); });
+
+  $("#projBtn").addEventListener("click", () => {
+    document.body.classList.add("projector");
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) document.body.classList.remove("projector"); });
+
+  start();
+})();
+</script>
+</body>
+</html>

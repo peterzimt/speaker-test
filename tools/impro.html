@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1B1426">
+<title>Impromptu Speaking Wheel — Random Topics & Structures | Aristotl.es</title>
+<meta name="description" content="A free impromptu speaking generator: spin a random topic, a speech structure and a constraint, then speak against the clock. Built for public speaking practice and table topics.">
+<link rel="canonical" href="https://aristotl.es/tools/impro.html">
+<meta property="og:title" content="The Impro Wheel — impromptu speaking practice">
+<meta property="og:description" content="Random topic + structure + constraint. Thirty seconds to think, ninety to speak.">
+<meta property="og:image" content="https://aristotl.es/character-preview.png">
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .reel { position: relative; min-height: 210px; display: flex; flex-direction: column; }
+  .reel .kicker { display: flex; justify-content: space-between; align-items: center; }
+  .reel .val { flex: 1; display: flex; align-items: center; font: 600 clamp(22px, 2.6vw, 34px)/1.15 Fraunces, serif; transition: opacity .08s; }
+  .reel .sub { font-size: 14px; color: var(--on-dark-soft); min-height: 2.6em; }
+  .reel.spinning .val { opacity: .55; filter: blur(.4px); }
+  .lock { appearance: none; background: none; border: 1px solid var(--card-line); color: var(--on-dark-soft); border-radius: 999px; font: 11px/1 "Space Mono", monospace; padding: 5px 9px; cursor: pointer; letter-spacing: .05em; }
+  .lock[aria-pressed="true"] { color: var(--ink); background: var(--gold); border-color: var(--gold); }
+  .clock { text-align: center; padding: 26px 16px; }
+  .clock .t { font: 700 clamp(64px, 11vw, 132px)/1 "Space Mono", monospace; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .clock .phase { font: 700 13px/1 "Space Mono", monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+  .clock.speak .phase { color: var(--c-delivery); }
+  .clock.over .t { color: var(--warn); }
+  .clock.warn .t { color: var(--gold-bright); }
+  .prog { height: 6px; border-radius: 99px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 18px; }
+  .prog span { display: block; height: 100%; width: 0; background: var(--gold); transition: width 1s linear; }
+  .clock.speak .prog span { background: var(--c-delivery); }
+  .controls { justify-content: center; margin-top: 18px; }
+  .settings select { width: auto; padding: 8px 10px; font-size: 14px; }
+  body.big .topbar, body.big .noproj { display: none; }
+  body.big .reel .val { font-size: clamp(28px, 3.4vw, 50px); }
+  @media (max-width: 760px) { .reels { grid-template-columns: 1fr; } .reel { min-height: 0; } .reel .val { padding: 10px 0; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="index.html">Tools</a><a class="on" href="impro.html">Impro wheel</a><a href="/meetup.html">Madrid meetup</a></nav>
+</header>
+
+<main class="wrap">
+  <div class="noproj" style="margin-bottom: 22px">
+    <div class="kicker">Impromptu practice</div>
+    <h1>The Impro <em>Wheel</em></h1>
+    <p class="soft" style="max-width: 640px">A random topic, a structure to hang it on, and one constraint. Think for a moment, then speak against the clock. Press <span class="mono">Space</span> to spin.</p>
+  </div>
+
+  <div class="reels">
+    <div class="card reel" id="r-topic"><div class="kicker">Topic <button class="lock" data-r="topic" aria-pressed="false">Lock</button></div><div class="val">—</div><div class="sub"></div></div>
+    <div class="card reel" id="r-structure"><div class="kicker">Structure <button class="lock" data-r="structure" aria-pressed="false">Lock</button></div><div class="val">—</div><div class="sub"></div></div>
+    <div class="card reel" id="r-constraint"><div class="kicker">Constraint <button class="lock" data-r="constraint" aria-pressed="false">Lock</button></div><div class="val">—</div><div class="sub"></div></div>
+  </div>
+
+  <div class="card clock" id="clock" style="margin-top: 16px">
+    <div class="phase" id="phase">Ready</div>
+    <div class="t" id="time">0:30</div>
+    <div class="prog"><span id="bar"></span></div>
+  </div>
+
+  <div class="row controls">
+    <button class="btn" id="spin" type="button">🎲 Spin</button>
+    <button class="btn ghost" id="go" type="button">▶ Start the clock</button>
+    <button class="btn ghost" id="reset" type="button">Reset</button>
+    <button class="btn ghost" id="bigBtn" type="button">⛶ Projector</button>
+  </div>
+
+  <details class="card noproj settings" style="margin-top: 22px">
+    <summary style="cursor: pointer; font-weight: 600">Settings & your own topics</summary>
+    <div class="stack" style="margin-top: 14px">
+      <div class="row">
+        <label style="margin:0">Think time</label>
+        <select id="think"><option value="0">none</option><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select>
+        <label style="margin:0 0 0 12px">Speak time</label>
+        <select id="speak"><option value="60">1 min</option><option value="90" selected>1 min 30</option><option value="120">2 min</option><option value="180">3 min</option></select>
+        <label style="margin:0 0 0 12px">Topics</label>
+        <select id="deck"><option value="mixed">Mixed</option><option value="everyday">Everyday</option><option value="work">Work</option><option value="deep">Big questions</option><option value="fun">Playful</option><option value="custom">My topics only</option></select>
+      </div>
+      <div>
+        <label for="custom">Your own topics, one per line (saved in this browser)</label>
+        <textarea id="custom" rows="5" placeholder="The best advice I ignored&#10;Why Madrid is…"></textarea>
+      </div>
+    </div>
+  </details>
+
+  <section class="noproj" style="margin-top: 40px; max-width: 760px">
+    <h2>How to use it in a session</h2>
+    <p class="soft">Project it, spin, and invite the next volunteer. They get the think time on the clock, then speak until the bar runs out — amber at 30 seconds left, red at time. The structure gives them a spine; the constraint stretches one specific skill. Lock any reel to keep it for the whole round, so everyone practises the same structure on different topics.</p>
+    <p class="soft">Want to practise it with real people? <a href="/meetup.html">Join the weekly meetup in Madrid</a>, or <a href="/speaker-profile-quiz.html">find your speaker profile</a> first.</p>
+  </section>
+</main>
+<footer class="footer">aristotl.es · <a href="technique/improvisation.html">Improvisation technique sheet</a></footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(() => {
+  const { $, $$, store } = AT;
+  const TOPICS = {
+    everyday: ["The best meal I've ever had", "A habit I'm proud of", "The most useful thing I own", "Morning person or night owl?", "A place that changed me", "The last thing that made me laugh out loud", "Why everyone should learn to cook one dish", "A skill I'd love to learn", "My perfect Sunday", "Something I changed my mind about", "The best gift I ever received", "City life or country life?", "A small luxury worth paying for", "The friend who shaped me"],
+    work: ["The best boss I ever had", "Meetings: fix them or kill them?", "One tool everyone at work should use", "Remote, office or hybrid?", "The mistake that taught me the most", "How to say no to your manager", "What makes a great team", "My job explained to a ten-year-old", "The email I wish I'd never sent", "Should we work four days a week?", "A decision I'd make if I were CEO", "The most overrated business buzzword"],
+    deep: ["Is it better to be respected or liked?", "What does success mean to you?", "Should children have phones?", "Is honesty always the best policy?", "What will people find strange about us in 100 years?", "Can you learn courage?", "Is it ever too late to start over?", "Does social media make us lonelier?", "What makes a life well lived?", "Should everyone speak more than one language?"],
+    fun: ["Pitch a holiday on the Moon", "Defend pineapple on pizza", "Convince us to adopt your (imaginary) pet dragon", "Sell us the world's most useless invention", "If animals could talk, which would be the rudest?", "Your life as a movie: title and plot", "Argue that Monday is the best day", "Introduce yourself as a superhero", "Why the umbrella is humanity's greatest invention", "Explain the internet to Aristotle"],
+  };
+  const STRUCTURES = [
+    ["PREP", "Point → Reason → Example → Point"],
+    ["Past · Present · Future", "Where it was, where it is, where it's going"],
+    ["Problem · Solution · Impact", "The pain, the fix, the world after"],
+    ["Story · Message · Action", "Tell it, mean it, ask for it"],
+    ["Hook · Development · Revelation · Close", "Grab, build, reveal, land"],
+    ["What · So what · Now what", "The fact, why it matters, what to do"],
+    ["Pros · Cons · Verdict", "Weigh both sides, then commit"],
+    ["Three reasons", "Claim, then exactly three reasons, then claim again"],
+  ];
+  const CONSTRAINTS = [
+    ["Open with a question", "No name, no preamble"],
+    ["Include a 3-second pause", "Place it after your key line"],
+    ["Use one number", "Make it concrete and memorable"],
+    ["Include an analogy", "\"It's like…\""],
+    ["Zero filler words", "Pause instead of um, so, like"],
+    ["End with a call to action", "One thing they can do this week"],
+    ["Speak to one person", "Pick one face for each sentence"],
+    ["Plant your feet", "Move only on transitions"],
+    ["Start in the middle of a scene", "Time, place, action"],
+    ["One deliberate gesture", "Rehearse it in your head first"],
+    ["Change your pace once", "Slow right down for the key line"],
+    ["No constraint", "Just speak — enjoy it"],
+  ];
+
+  const locks = { topic: false, structure: false, constraint: false };
+  try { $("#custom").value = (store.get("aristotles.customTopics") || []).join("\n"); } catch {}
+  $("#custom").addEventListener("input", () => store.set("aristotles.customTopics", customTopics()));
+  function customTopics() { return $("#custom").value.split("\n").map(s => s.trim()).filter(Boolean); }
+  function topicPool() {
+    const deck = $("#deck").value, custom = customTopics();
+    if (deck === "custom") return custom.length ? custom : TOPICS.everyday;
+    if (deck === "mixed") return [...Object.values(TOPICS).flat(), ...custom];
+    return [...TOPICS[deck], ...custom];
+  }
+  const pick = (arr, not) => { let v; let n = 0; do { v = arr[Math.floor(Math.random() * arr.length)]; } while (arr.length > 1 && JSON.stringify(v) === JSON.stringify(not) && n++ < 10); return v; };
+  const state = {};
+
+  function setReel(key, val) {
+    const el = $("#r-" + key);
+    const [main, sub] = Array.isArray(val) ? val : [val, ""];
+    el.querySelector(".val").textContent = main; el.querySelector(".sub").textContent = sub;
+  }
+  function spin() {
+    resetClock();
+    const pools = { topic: topicPool(), structure: STRUCTURES, constraint: CONSTRAINTS };
+    const keys = Object.keys(pools).filter(k => !locks[k]);
+    keys.forEach((k, idx) => {
+      const el = $("#r-" + k); el.classList.add("spinning");
+      let ticks = 0; const total = 10 + idx * 6;
+      const tick = () => {
+        state[k] = pick(pools[k], state[k]); setReel(k, state[k]);
+        if (++ticks < total) setTimeout(tick, 40 + ticks * 6); else el.classList.remove("spinning");
+      };
+      tick();
+    });
+  }
+  $$(".lock").forEach(b => b.addEventListener("click", () => { const r = b.dataset.r; locks[r] = !locks[r]; b.setAttribute("aria-pressed", String(locks[r])); b.textContent = locks[r] ? "Locked" : "Lock"; }));
+
+  /* ---------- clock ---------- */
+  let timer = null, phase = "ready", left = 0, total = 0;
+  const fmt = s => `${s < 0 ? "+" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.abs(s) % 60).padStart(2, "0")}`;
+  function paint() {
+    const c = $("#clock");
+    c.className = "card clock " + (phase === "speak" ? "speak" : "") + (phase === "speak" && left <= 0 ? " over" : phase === "speak" && left <= 30 ? " warn" : "");
+    $("#phase").textContent = { ready: "Ready", think: "Think", speak: left <= 0 ? "Time — wrap it up" : "Speak", done: "Done" }[phase];
+    $("#time").textContent = fmt(phase === "ready" ? Number($("#think").value) || Number($("#speak").value) : left);
+    $("#bar").style.width = total ? Math.min(100, (1 - Math.max(left, 0) / total) * 100) + "%" : "0";
+  }
+  function beep(f = 660, d = .15) { try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(), g = a.createGain(); o.frequency.value = f; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + d); } catch {} }
+  function startPhase(p) {
+    phase = p; total = left = Number($(p === "think" ? "#think" : "#speak").value);
+    paint(); clearInterval(timer);
+    timer = setInterval(() => {
+      left--;
+      if (phase === "think" && left <= 0) { beep(880); return startPhase("speak"); }
+      if (phase === "speak" && left === 30) beep(520, .1);
+      if (phase === "speak" && left === 0) beep(440, .4);
+      if (phase === "speak" && left < -30) { clearInterval(timer); phase = "done"; }
+      paint();
+    }, 1000);
+    $("#go").textContent = "■ Stop";
+  }
+  function resetClock() { clearInterval(timer); phase = "ready"; total = left = 0; paint(); $("#go").textContent = "▶ Start the clock"; }
+  $("#go").addEventListener("click", () => {
+    if (phase === "think" || phase === "speak") return resetClock();
+    if (!state.topic) spin();
+    startPhase(Number($("#think").value) > 0 ? "think" : "speak");
+  });
+  $("#reset").addEventListener("click", resetClock);
+  $("#spin").addEventListener("click", spin);
+  ["#think", "#speak"].forEach(s => $(s).addEventListener("change", resetClock));
+  $("#bigBtn").addEventListener("click", () => { document.body.classList.add("big"); document.documentElement.requestFullscreen?.().catch(() => {}); });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) document.body.classList.remove("big"); });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, textarea, select")) return;
+    if (e.code === "Space") { e.preventDefault(); spin(); }
+    if (e.key === "Enter") { e.preventDefault(); $("#go").click(); }
+  });
+  paint(); spin();
+})();
+</script>
+</body>
+</html>

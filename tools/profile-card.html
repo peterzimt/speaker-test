@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1B1426">
+<title>Share Your Speaker Profile Card | Aristotl.es</title>
+<meta name="description" content="Turn your public speaking profile into a shareable card for Instagram, LinkedIn or WhatsApp. Took the free speaker test? Show your profile and challenge your friends.">
+<link rel="canonical" href="https://aristotl.es/tools/profile-card.html">
+<meta property="og:title" content="What kind of speaker are you? Share your profile card">
+<meta property="og:description" content="Take the free speaker test, then share your profile card.">
+<meta property="og:image" content="https://aristotl.es/character-preview.png">
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 26px; align-items: start; }
+  .preview { position: sticky; top: 16px; }
+  .preview canvas { width: 100%; height: auto; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.45); display: block; }
+  .fam h3 { margin: 18px 0 10px; font-size: 16px; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+  .pbtn { appearance: none; background: var(--card); border: 1px solid var(--card-line); border-radius: 14px; padding: 10px 8px 12px; color: var(--on-dark); cursor: pointer; text-align: center; font: 600 13px/1.25 Inter, sans-serif; }
+  .pbtn svg { width: 64px; height: 64px; display: block; margin: 0 auto 6px; }
+  .pbtn[aria-pressed="true"] { border-color: var(--gc); background: color-mix(in srgb, var(--gc) 14%, transparent); }
+  .seg { display: inline-flex; border: 1px solid var(--card-line); border-radius: 999px; padding: 3px; }
+  .seg button { appearance: none; background: none; border: 0; color: var(--on-dark-soft); font: 600 13px/1 Inter; padding: 9px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--gold); color: var(--ink); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .preview { position: static; order: -1; max-width: 420px; margin: 0 auto; width: 100%; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="/speaker-profile-quiz.html">The test</a><a href="/meetup.html">Madrid meetup</a></nav>
+</header>
+
+<main class="wrap">
+  <div style="margin-bottom: 22px">
+    <div class="kicker">Share your result</div>
+    <h1>Your speaker profile, <em>as a card</em></h1>
+    <p class="soft" style="max-width: 620px">Pick your profile, add your name if you like, and share it. Haven't taken it yet? <a href="/speaker-profile-quiz.html">The free test</a> takes about ten minutes.</p>
+  </div>
+  <div id="err" class="notice err hidden"></div>
+
+  <div class="layout" id="layout">
+    <div class="stack">
+      <div class="card stack">
+        <div class="row" style="gap: 14px">
+          <div style="flex: 1; min-width: 200px"><label for="nameIn">Your name <span class="soft">(optional)</span></label><input id="nameIn" type="text" maxlength="40" placeholder="e.g. Lucía"></div>
+          <div><label>Format</label><div class="seg" id="fmt"><button type="button" data-f="post" aria-pressed="true">Post 4:5</button><button type="button" data-f="story" aria-pressed="false">Story 9:16</button></div></div>
+        </div>
+      </div>
+      <div id="families"></div>
+    </div>
+
+    <div class="preview stack">
+      <canvas id="cv" width="1080" height="1350" aria-label="Profile card preview"></canvas>
+      <div class="row">
+        <button class="btn" id="shareBtn" type="button">Share / save image</button>
+        <a class="btn ghost small" id="waBtn" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="btn ghost small" id="liBtn" target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+      <p class="small soft" style="margin: 0">On a phone, “Share” opens Instagram, WhatsApp and the rest. On a computer, it downloads the image.</p>
+    </div>
+  </div>
+</main>
+<footer class="footer">aristotl.es · <a href="/meetup.html">Practise with us in Madrid</a> · <a href="passport.html">Speaker passport</a></footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(async () => {
+  const { $, $$, esc, param } = AT;
+  const chars = await AT.loadCharacters();
+  if (!chars) { $("#err").textContent = "The speaker profiles couldn't be loaded. Please refresh the page."; $("#err").classList.remove("hidden"); $("#layout").classList.add("hidden"); return; }
+
+  let current = chars.byId[param("p")] || chars.profiles[0], format = "post";
+  $("#nameIn").value = (param("n") || "").slice(0, 40);
+
+  $("#families").innerHTML = chars.groups.map(g => `
+    <section class="fam"><h3 style="color:${g.color}">${esc(g.name)}</h3>
+      <div class="pgrid">${chars.profiles.filter(p => p.g === g.id).map(p => `<button class="pbtn" type="button" data-id="${p.id}" style="--gc:${g.color}" aria-pressed="false">${chars.draw(p)}${esc(p.name.replace(/^The /, ""))}</button>`).join("")}</div>
+    </section>`).join("");
+  $("#families").addEventListener("click", (e) => { const b = e.target.closest(".pbtn"); if (!b) return; current = chars.byId[b.dataset.id]; sync(); render(); if (innerWidth < 860) $("#cv").scrollIntoView({ behavior: "smooth", block: "center" }); });
+  $("#nameIn").addEventListener("input", render);
+  $$("#fmt button").forEach(b => b.addEventListener("click", () => { format = b.dataset.f; $$("#fmt button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); render(); }));
+
+  function sync() {
+    $$(".pbtn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === current.id)));
+    const u = new URL(location.href); u.searchParams.set("p", current.id); history.replaceState(null, "", u);
+    const shareUrl = `https://aristotl.es/share/${current.id}.html`;
+    const text = `I'm "${current.name}" — ${current.tag} What kind of speaker are you under pressure?\n${shareUrl}`;
+    $("#waBtn").href = "https://wa.me/?text=" + encodeURIComponent(text);
+    $("#liBtn").href = "https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(shareUrl);
+  }
+
+  function wrap(x, text, maxW) {
+    const words = String(text).split(" "), lines = []; let line = "";
+    for (const w of words) { const t = line ? line + " " + w : w; if (x.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+    if (line) lines.push(line); return lines;
+  }
+  async function svgImage(svg, w) {
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.replace("<svg ", `<svg width="${w}" height="${w}" `));
+    try { await img.decode(); } catch {} return img;
+  }
+
+  let seq = 0;
+  async function render() {
+    const my = ++seq;
+    const p = current, g = p.group, W = 1080, H = format === "story" ? 1920 : 1350;
+    await Promise.all(["600 80px Fraunces", "italic 600 40px Fraunces", "700 26px 'Space Mono'", "400 30px Inter", "600 30px Inter"].map(f => document.fonts.load(f).catch(() => {})));
+    const img = await svgImage(chars.draw(p), 520);
+    if (my !== seq) return;
+    const cv = $("#cv"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+    x.fillStyle = "#1B1426"; x.fillRect(0, 0, W, H);
+    const glow = x.createRadialGradient(W / 2, H * .3, 40, W / 2, H * .3, W * .8); glow.addColorStop(0, g.color + "38"); glow.addColorStop(1, "#1B142600");
+    x.fillStyle = glow; x.fillRect(0, 0, W, H);
+    x.strokeStyle = "rgba(233,184,92,.25)"; x.lineWidth = 2; x.strokeRect(36, 36, W - 72, H - 72);
+
+    const top = format === "story" ? 210 : 120;
+    x.textAlign = "center";
+    x.fillStyle = "#E9B85C"; x.font = "700 26px 'Space Mono', monospace"; x.fillText(($("#nameIn").value.trim() ? $("#nameIn").value.trim() + "'S " : "MY ").toUpperCase() + "SPEAKER PROFILE", W / 2, top);
+    const av = format === "story" ? 560 : 420;
+    x.drawImage(img, (W - av) / 2, top + 50, av, av);
+    let y = top + 50 + av + 110;
+    x.fillStyle = "#EDE6F2"; x.font = "600 92px Fraunces, Georgia, serif"; x.fillText(p.name, W / 2, y);
+    y += 74;
+    x.fillStyle = "#F2D08A"; x.font = "italic 600 40px Fraunces, Georgia, serif";
+    wrap(x, p.tag, W - 220).forEach(l => { x.fillText(l, W / 2, y); y += 52; });
+    // family chip
+    y += 18; x.font = "700 22px 'Space Mono', monospace";
+    const chip = ("FAMILY · " + g.name).toUpperCase(), cw = x.measureText(chip).width + 48;
+    x.fillStyle = g.color + "2E"; roundRect(x, (W - cw) / 2, y - 34, cw, 52, 26); x.fill();
+    x.fillStyle = g.color; x.fillText(chip, W / 2, y);
+    {
+      y += format === "story" ? 110 : 84;
+      x.fillStyle = "#A99FB5"; x.font = "700 22px 'Space Mono', monospace"; x.fillText("MY NEXT REP", W / 2, y); y += 50;
+      x.fillStyle = "#EDE6F2"; x.font = `400 ${format === "story" ? 34 : 30}px Inter, sans-serif`;
+      const lines = wrap(x, p.cue, W - 260), max = format === "story" ? 5 : 3;
+      if (lines.length > max) { lines.length = max; lines[max - 1] = lines[max - 1].replace(/\s*\S*$/, "") + "…"; }
+      lines.forEach(l => { x.fillText(l, W / 2, y); y += format === "story" ? 48 : 42; });
+    }
+    // footer
+    x.fillStyle = "#EDE6F2"; x.font = "600 34px Inter, sans-serif"; x.fillText("What kind of speaker are you?", W / 2, H - 150);
+    x.fillStyle = "#E9B85C"; x.font = "700 30px 'Space Mono', monospace"; x.fillText("aristotl.es", W / 2, H - 98);
+  }
+  function roundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
+
+  $("#shareBtn").addEventListener("click", () => {
+    $("#cv").toBlob(async (blob) => {
+      const file = new File([blob], `speaker-profile-${current.id}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], text: `I'm ${current.name}. What kind of speaker are you? aristotl.es` }); return; } catch {} }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    }, "image/png");
+  });
+
+  sync(); render();
+})();
+</script>
+</body>
+</html>

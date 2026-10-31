@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1B1426">
+<title>Your feedback card | Aristotl.es</title>
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .wrap { max-width: 640px; }
+  .scores { display: grid; gap: 12px; }
+  .score { display: grid; grid-template-columns: 96px 1fr 34px; gap: 10px; align-items: center; font-size: 14px; }
+  .score b { font: 700 11.5px/1 "Space Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .score .v { font: 600 16px/1 Fraunces, serif; text-align: right; }
+  .comment { background: rgba(255,255,255,.04); border-left: 3px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .comment.next { border-left-color: var(--c-delivery); }
+  .best { font: 600 22px/1.25 Fraunces, serif; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="passport.html">My passport</a></nav>
+</header>
+
+<main class="wrap stack">
+  <div id="err" class="notice err hidden"></div>
+
+  <section id="card" class="stack hidden">
+    <div>
+      <div class="kicker" id="kicker">Feedback card</div>
+      <h1 id="title"></h1>
+      <p class="soft" id="meta"></p>
+    </div>
+
+    <div class="card" id="radar"></div>
+    <div class="card"><div class="scores" id="scores"></div></div>
+
+    <div class="card" id="strength"></div>
+
+    <div class="card stack" id="commentsCard">
+      <h3>What the room said</h3>
+      <div id="comments"></div>
+    </div>
+
+    <!-- passport -->
+    <div class="paper stack" id="passportBox">
+      <div class="kicker" style="color: var(--on-paper-soft)">Speaker passport</div>
+      <h2 style="color: var(--on-paper)">Track your progress, <em style="color:#B07A1C">week after week</em></h2>
+      <div id="ppHave" class="stack hidden">
+        <p class="soft">Add this speech to <strong id="ppName"></strong>'s passport.</p>
+        <button class="btn" id="ppAdd" type="button">Add to my passport</button>
+      </div>
+      <form id="ppNew" class="stack hidden">
+        <p class="soft">Keep every feedback card in one place and see how your radar grows. No sign-up — just a private link.</p>
+        <div><label for="ppNameIn" style="color: var(--on-paper-soft)">Your name</label><input id="ppNameIn" type="text" maxlength="60" required style="background:#fff;color:var(--on-paper);border-color:#d8cfbd"></div>
+        <button class="btn" type="submit">Create my passport & add this speech</button>
+      </form>
+      <div id="ppDone" class="hidden">
+        <p>✓ Saved. <a href="#" id="ppLink" style="color:#8A5A10">Open my passport →</a></p>
+      </div>
+      <div id="ppErr" class="notice err hidden"></div>
+    </div>
+
+    <div class="row noprint">
+      <button class="btn ghost" id="shareBtn" type="button">Save as image</button>
+      <a class="btn ghost" id="techBtn" href="#" style="display:none">This week's technique →</a>
+    </div>
+  </section>
+</main>
+<footer class="footer">aristotl.es · <a href="/speaker-profile-quiz.html">Find your speaker profile</a> · <a href="/coaching.html">1-to-1 coaching</a></footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/techniques.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(async () => {
+  const { $, esc, api, param, CRITERIA, radarSvg, fmtDate, passport } = AT;
+  const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
+  const id = param("id"), k = param("k");
+  const fail = (m) => { $("#err").textContent = m; $("#err").classList.remove("hidden"); };
+  if (!id || !k) return fail("This link is incomplete. Scan the QR code again at the end of your speech.");
+
+  let r;
+  try { r = await api(`/speeches/${encodeURIComponent(id)}/results?k=${encodeURIComponent(k)}`); }
+  catch (ex) { return fail(ex.message); }
+
+  const t = techBySlug[r.speech.technique];
+  $("#title").innerHTML = `${esc(r.speech.speaker)}, <em>here's how it landed</em>`;
+  $("#meta").textContent = `${fmtDate(r.speech.date)} · ${r.speech.session} · ${r.votes} ${r.votes == 1 ? "person" : "people"} gave feedback`;
+  if (t) { $("#kicker").textContent = "Feedback card · " + t.title; $("#techBtn").href = `technique/${t.slug}.html`; $("#techBtn").style.display = ""; }
+  $("#radar").innerHTML = radarSvg(r.scores, { size: 380 });
+  $("#scores").innerHTML = CRITERIA.map(c => {
+    const v = r.scores[c.key];
+    return `<div class="score"><b style="color:${c.hex}">${c.label}</b><div class="bar"><span style="width:${(v || 0) * 20}%;background:${c.hex}"></span></div><span class="v">${v == null ? "–" : v.toFixed(1)}</span></div>`;
+  }).join("");
+
+  // strongest & next
+  const ranked = CRITERIA.filter(c => r.scores[c.key] != null).sort((a, b) => r.scores[b.key] - r.scores[a.key]);
+  if (ranked.length) {
+    const top = ranked[0], low = ranked[ranked.length - 1];
+    $("#strength").innerHTML = `<div class="kicker">Your edge tonight</div><p class="best">${top.label} <span class="soft" style="font-size:15px;font-family:Inter">— ${top.hint.split("—")[0].trim()}</span></p>
+      ${low.key !== top.key ? `<p class="soft small" style="margin:0">Most room to grow: <strong style="color:${low.hex}">${low.label}</strong>. ${t ? `Revisit <a href="technique/${t.slug}.html">${esc(t.title)}</a> for a drill.` : ""}</p>` : ""}`;
+  } else $("#strength").classList.add("hidden");
+
+  const comments = r.worked.map(x => `<div class="comment">✓ ${esc(x)}</div>`).join("") + r.next_rep.map(x => `<div class="comment next">→ ${esc(x)}</div>`).join("");
+  if (comments) $("#comments").innerHTML = comments; else $("#commentsCard").classList.add("hidden");
+  $("#card").classList.remove("hidden");
+
+  /* ---------- passport ---------- */
+  const ppErr = (m) => { $("#ppErr").textContent = m || ""; $("#ppErr").classList.toggle("hidden", !m); };
+  function done(p) { ["ppHave", "ppNew"].forEach(x => $("#" + x).classList.add("hidden")); $("#ppDone").classList.remove("hidden"); $("#ppLink").href = passport.link(p); }
+  const mine = passport.get();
+  if (mine) { $("#ppName").textContent = mine.name; $("#ppHave").classList.remove("hidden"); }
+  else { $("#ppNameIn").value = r.speech.speaker; $("#ppNew").classList.remove("hidden"); }
+
+  $("#ppAdd").addEventListener("click", async () => {
+    try { await api(`/passports/${mine.id}/speeches`, { method: "POST", body: { k: mine.secret, speech_id: id, token: k } }); done(mine); }
+    catch (ex) {
+      if (ex.status === 404) { passport.clear(); $("#ppHave").classList.add("hidden"); $("#ppNameIn").value = r.speech.speaker; $("#ppNew").classList.remove("hidden"); ppErr("That passport no longer exists on this phone — create a new one."); }
+      else ppErr(ex.message);
+    }
+  });
+  $("#ppNew").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const p = await api("/passports", { method: "POST", body: { name: $("#ppNameIn").value } });
+      passport.set(p);
+      await api(`/passports/${p.id}/speeches`, { method: "POST", body: { k: p.secret, speech_id: id, token: k } });
+      ppErr(""); done(p);
+    } catch (ex) { ppErr(ex.message); }
+  });
+
+  /* ---------- save as image ---------- */
+  $("#shareBtn").addEventListener("click", async () => {
+    await document.fonts.ready;
+    const W = 1080, H = 1350, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const x = cv.getContext("2d");
+    const grad = x.createRadialGradient(W / 2, -100, 50, W / 2, 0, 900); grad.addColorStop(0, "#2A1F3A"); grad.addColorStop(1, "#1B1426");
+    x.fillStyle = "#1B1426"; x.fillRect(0, 0, W, H); x.fillStyle = grad; x.fillRect(0, 0, W, H);
+    x.fillStyle = "#E9B85C"; x.font = "700 26px 'Space Mono', monospace"; x.fillText((t ? "FEEDBACK · " + t.title : "FEEDBACK CARD").toUpperCase(), 80, 120);
+    x.fillStyle = "#EDE6F2"; x.font = "600 76px Fraunces, Georgia, serif"; x.fillText(r.speech.speaker, 80, 210);
+    x.fillStyle = "#A99FB5"; x.font = "400 30px Inter, sans-serif"; x.fillText(`${fmtDate(r.speech.date)} · ${r.votes} reviewers`, 80, 260);
+    const svg = radarSvg(r.scores, { size: 900 }).replace('width="100%"', 'width="900" height="900"');
+    const img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    await img.decode().catch(() => {});
+    x.drawImage(img, 90, 300, 900, 900);
+    x.fillStyle = "#E9B85C"; x.font = "700 28px Inter, sans-serif"; x.fillText("aristotl.es", 80, H - 70);
+    x.fillStyle = "#A99FB5"; x.font = "400 26px Inter, sans-serif"; x.textAlign = "right"; x.fillText("Public speaking · Madrid", W - 80, H - 70);
+    cv.toBlob(async (blob) => {
+      const file = new File([blob], `feedback-${r.speech.speaker.toLowerCase().replace(/\W+/g, "-")}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: "My feedback card" }); return; } catch {} }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    }, "image/png");
+  });
+})();
+</script>
+</body>
+</html>
