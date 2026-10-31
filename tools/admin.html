@@ -217,12 +217,19 @@
   if (location.hash === "#youtube") $('.tabs button[data-tab="youtube"]').click();
 
   /* ================= YOUTUBE ================= */
-  const ytParam = new URLSearchParams(location.search).get("youtube");
-  if (ytParam) {
-    const msgs = { connected: ["✓ Your YouTube channel is connected.", false], cancelled: ["Connection cancelled.", true], expired: ["That connection link expired — try again.", true], failed: ["Google didn't give the site access. Try again, and make sure you tick the YouTube permission boxes.", true] };
-    const [m, bad] = msgs[ytParam] || ["", false];
-    if (m) { $("#ytMsg").textContent = m; $("#ytMsg").classList.toggle("err", bad); $("#ytMsg").classList.remove("hidden"); }
+  // Google sends you back here after "Connect": ?code=…&state=… (or ?error=…)
+  const qp = new URLSearchParams(location.search);
+  const ytMsg = (m, bad) => { $("#ytMsg").textContent = m; $("#ytMsg").classList.toggle("err", !!bad); $("#ytMsg").classList.remove("hidden"); };
+  if (qp.get("state") && (qp.get("code") || qp.get("error"))) {
     history.replaceState(null, "", location.pathname + "#youtube");
+    $('.tabs button[data-tab="youtube"]').click();
+    if (qp.get("error")) ytMsg("Connection cancelled.", true);
+    else {
+      ytMsg("Connecting your channel…");
+      api("/youtube/exchange", { method: "POST", host: true, body: { code: qp.get("code"), state: qp.get("state") } })
+        .then(r => { ytMsg(`✓ Connected to ${r.channel?.title || "your YouTube channel"}. Videos will now upload automatically.`); loadYoutube(); })
+        .catch(ex => ytMsg(ex.message, true));
+    }
   }
   async function loadYoutube() {
     try {
