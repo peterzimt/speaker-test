@@ -20,6 +20,7 @@
   .q-item.open { border-color: rgba(79,182,166,.6); background: rgba(79,182,166,.07); }
   .q-item .who { font-weight: 600; }
   .q-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .filmsel { width: auto; max-width: 170px; padding: 6px 8px; font-size: 13px; border-radius: 999px; }
   .overlay { position: fixed; inset: 0; background: rgba(21,15,31,.94); backdrop-filter: blur(6px); z-index: 50; overflow: auto; padding: 24px 16px; }
   .overlay .inner { max-width: 1000px; margin: 0 auto; }
   .res-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: center; }
@@ -102,7 +103,7 @@
     <div class="host-grid">
       <div class="stack">
         <div class="qrbox">
-          <div class="kicker" style="color: var(--on-paper-soft)">Scan to give feedback</div>
+          <div class="kicker" style="color: var(--on-paper-soft)">Scan to join: timer, feedback &amp; filming</div>
           <div id="qr"></div>
           <div class="code" id="sCode"></div>
           <div class="url" id="sUrl"></div>
@@ -129,6 +130,19 @@
             <label class="chk"><input type="checkbox" id="autoTimer" checked> Start it when I open voting</label>
             <div class="row"><button class="btn small" id="tStart" type="button">▶ Start</button><button class="btn ghost small hidden" id="tStop" type="button">■ Stop</button></div>
           </div>
+        </div>
+        <div class="card stack" id="filmCard">
+          <div class="row" style="justify-content: space-between"><h3 style="margin: 0">🎥 Filming</h3><span class="small soft" id="partCount">No one has joined yet</span></div>
+          <div class="row">
+            <select id="camMode" style="flex: 1; min-width: 200px">
+              <option value="rotation">Rotation: each person films the next speaker</option>
+              <option value="single">One camera person films everyone</option>
+              <option value="camera">Only the camera page (camera password)</option>
+            </select>
+            <select id="camPerson" class="hidden" style="flex: 1; min-width: 160px"></select>
+            <button class="btn ghost small" id="shuffleBtn" type="button" title="New random order">🎲 Reshuffle</button>
+          </div>
+          <p class="small soft" style="margin: 0">People join by scanning the QR code and typing their name: they're added to the speakers list. You can change who films any speech in its row.</p>
         </div>
         <form id="addForm" class="card row" autocomplete="off">
           <input id="speaker" type="text" maxlength="60" placeholder="Next speaker's first name" style="flex: 1; min-width: 160px" required>
@@ -247,7 +261,8 @@
 
   async function refresh() {
     try {
-      const { session, speeches, timer } = await api("/sessions/" + code, { host: true });
+      const { session, speeches, timer, participants, camera } = await api("/sessions/" + code, { host: true });
+      renderFilming(participants || [], camera || { mode: "rotation" }); window.__parts = participants || [];
       window.__applyTimer?.(timer);
       err($("#sessErr"), "");
       const t = techBySlug[session.technique];
@@ -271,7 +286,8 @@
   }
 
   function renderQueue(list) {
-    const key = JSON.stringify(list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id]));
+    const parts = window.__parts || [];
+    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type]), parts.length]);
     if (key === lastQueueKey) return;
     lastQueueKey = key;
     $("#queue").innerHTML = list.length ? list.map(s => `
@@ -282,12 +298,37 @@
           ${s.status === "open"
             ? `<button class="btn small" data-act="close" data-id="${s.id}">Close voting</button>`
             : `<button class="btn ${s.status === "waiting" ? "" : "ghost"} small" data-act="open" data-id="${s.id}">${s.status === "waiting" ? "Open voting" : "Reopen"}</button>`}
+          ${s.film && s.status !== "closed" ? `<select class="filmsel" data-filmer="${s.id}" title="Who films this speech">
+            <option value="auto" ${!s.filmer ? "selected" : ""}>🎥 ${esc(s.filmed_by?.name || "auto")}${s.filmer ? "" : " (auto)"}</option>
+            ${parts.filter(p => p.speech_id !== s.id).map(p => `<option value="${p.id}" ${s.filmer === p.id ? "selected" : ""}>🎥 ${esc(p.name)}</option>`).join("")}
+            <option value="camera" ${s.filmer === "camera" ? "selected" : ""}>🎥 Camera page</option>
+            <option value="none" ${s.filmer === "none" ? "selected" : ""}>Nobody films</option>
+          </select>` : ""}
           <button class="btn ghost small" data-act="film" data-id="${s.id}" data-film="${s.film ? 1 : 0}" title="${s.film ? "Will be filmed. Click to stop filming this speaker" : "Not filmed. Click if the speaker agrees to be filmed"}" style="${s.film ? "" : "opacity:.45"}">🎥${s.film ? "" : " off"}</button>
           ${s.votes ? `<button class="btn ghost small" data-act="results" data-id="${s.id}" data-k="${s.result_token}">Results</button>` : ""}
           <button class="btn danger small" data-act="delete" data-id="${s.id}" title="Remove" aria-label="Remove ${esc(s.speaker)}">✕</button>
         </div>
       </div>`).join("") : `<div class="card soft small">No speakers yet. Add the first name above.</div>`;
   }
+
+  $("#queue").addEventListener("change", async (e) => {
+    const sel = e.target.closest("select[data-filmer]"); if (!sel) return;
+    try { await api(`/speeches/${sel.dataset.filmer}/filmer`, { method: "POST", host: true, body: { filmer: sel.value } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
+  });
+  function renderFilming(parts, cam) {
+    $("#partCount").textContent = parts.length ? `${parts.length} joined` : "No one has joined yet";
+    if (document.activeElement !== $("#camMode")) $("#camMode").value = cam.mode;
+    const opts = `<option value="">Choose the camera person…</option>` + parts.map(p => `<option value="${p.id}" ${cam.person === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+    if (document.activeElement !== $("#camPerson") && $("#camPerson").dataset.k !== opts) { $("#camPerson").innerHTML = opts; $("#camPerson").dataset.k = opts; }
+    $("#camPerson").classList.toggle("hidden", cam.mode !== "single");
+    $("#shuffleBtn").classList.toggle("hidden", cam.mode !== "rotation");
+  }
+  async function saveCam() {
+    try { await api(`/sessions/${code}/camera`, { method: "POST", host: true, body: { mode: $("#camMode").value, person: $("#camPerson").value } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
+  }
+  $("#camMode").addEventListener("change", saveCam);
+  $("#camPerson").addEventListener("change", saveCam);
+  $("#shuffleBtn").addEventListener("click", async () => { try { await api(`/sessions/${code}/shuffle`, { method: "POST", host: true }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); } });
 
   $("#queue").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act]"); if (!b) return;

@@ -5,13 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1B1426">
-<title>Give feedback | Aristotl.es</title>
+<title>Meetup | Aristotl.es</title>
 <link rel="stylesheet" href="assets/tools.css">
 <style>
   .wrap { max-width: 520px; }
   .crit-row { padding: 14px 0; border-top: 1px solid var(--card-line); }
   .crit-row:first-of-type { border-top: 0; padding-top: 4px; }
-  .crit-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .crit-name { font: 700 12.5px/1 "Space Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
   .crit-hint { font-size: 13.5px; color: var(--on-dark-soft); margin: 6px 0 10px; }
   .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
@@ -20,68 +19,124 @@
   .scale button[aria-pressed="true"] { background: var(--cc); border-color: var(--cc); color: var(--ink); transform: translateY(-1px); }
   .scale-ends { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--on-dark-soft); margin-top: 6px; }
   .speaker { font: 600 34px/1.1 Fraunces, serif; margin: 4px 0 2px; }
-  .done { text-align: center; padding: 36px 20px; }
+  .done { text-align: center; padding: 30px 20px; }
   .done .big { font-size: 46px; margin-bottom: 6px; }
   .sticky { position: sticky; bottom: 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--ink) 70%, rgba(27,20,38,0)); }
+  .codein { font: 700 28px/1 "Space Mono", monospace !important; letter-spacing: .3em; text-align: center; text-transform: uppercase; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; color: var(--on-dark); margin: 0; }
+  .opt input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+  .opt small { display: block; color: var(--on-dark-soft); font-size: 13px; margin-top: 3px; }
+  /* big timer */
+  .bigtimer { text-align: center; padding: 14px; margin-bottom: 14px; }
+  .bigtimer .t { font: 700 64px/1 "Space Mono", monospace; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .bigtimer .l { font: 700 11px/1 "Space Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--on-dark-soft); margin-bottom: 6px; }
+  .bigtimer.warn { border-color: rgba(233,184,92,.7); } .bigtimer.warn .t { color: var(--gold-bright); }
+  .bigtimer.over { border-color: rgba(224,122,107,.8); } .bigtimer.over .t { color: var(--warn); }
+  .tprog { height: 6px; border-radius: 99px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 10px; }
+  .tprog span { display: block; height: 100%; background: var(--c-delivery); transition: width .25s linear; }
+  .bigtimer.warn .tprog span { background: var(--gold); } .bigtimer.over .tprog span { background: var(--warn); }
+  /* flash overlay */
   .flash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #1B1426; cursor: pointer; }
-  .flash.warn { background: #FFC94D; animation: blink 1s steps(2, start) infinite; }
-  .flash.over { background: #FF4A3D; color: #fff; }
-  @keyframes blink { 50% { background: #FFF3C4; } }
+  .flash.warn { background: #FFC94D; animation: blinkA 1s steps(2, start) infinite; }
+  .flash.over { background: #FF4A3D; color: #fff; animation: blinkR .7s steps(2, start) infinite; }
+  @keyframes blinkA { 50% { background: #FFF3C4; } }
+  @keyframes blinkR { 50% { background: #FFFFFF; color: #FF4A3D; } }
   .flash .big { font: 700 34vw/1 "Space Mono", monospace; letter-spacing: -.04em; }
   .flash .msg { font: 700 22px/1.2 Inter, sans-serif; margin-top: 8px; }
   .flash .hint { font-size: 14px; opacity: .75; margin-top: 18px; }
-  .tpill { font: 700 13px/1 "Space Mono", monospace; padding: 7px 11px; border-radius: 999px; background: rgba(79,182,166,.16); color: #8FE0D2; }
-  .tpill.warn { background: rgba(233,184,92,.2); color: var(--gold-bright); }
-  .tpill.over { background: rgba(224,122,107,.2); color: #F2A79B; }
-  .lightopt { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--on-dark-soft); text-align: left; }
-  .lightopt input { margin-top: 3px; }
-  .nextline { margin-top: 6px; font-size: 16px; }
-  .nextline strong { font: 600 22px/1.2 Fraunces, serif; color: var(--on-dark); }
+  /* filming duty */
+  .duty { border-color: rgba(255,74,61,.5); background: rgba(255,74,61,.07); }
+  .duty.now { border-color: #FF4A3D; background: rgba(255,74,61,.14); }
+  .duty .who { font: 600 22px/1.2 Fraunces, serif; }
+  .camview { position: fixed; inset: 0; z-index: 95; background: #000; display: flex; flex-direction: column; }
+  .camview video { flex: 1; width: 100%; min-height: 0; object-fit: cover; background: #000; }
+  .camview .bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); background: #0F0B16; color: #fff; }
+  .camview .top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+  .camview .tag { background: rgba(0,0,0,.6); color: #fff; padding: 8px 12px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+  .rec { display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,.6); color: #fff; padding: 8px 12px; border-radius: 999px; font: 700 13px/1 "Space Mono", monospace; }
+  .rec i { width: 10px; height: 10px; border-radius: 50%; background: #FF4A3D; animation: pulse 1s infinite; }
+  .uprow { font-size: 13.5px; color: var(--on-dark-soft); }
+  .uprow .bar { height: 5px; margin-top: 6px; }
+  .uprow .bar span { background: var(--c-delivery); }
+  /* filler counter */
   .umbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
   .counter { position: fixed; inset: 0; z-index: 90; background: var(--ink); display: flex; flex-direction: column; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
   .counter .top { display: flex; justify-content: space-between; align-items: center; }
   .counter .tap { flex: 1; margin: 16px 0; border: 0; border-radius: 28px; background: var(--gold); color: var(--ink); font: 700 26px/1.2 Inter, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
-  .counter .tap:active { background: var(--gold-bright); transform: scale(.99); }
   .counter .tap .n { font: 700 120px/1 "Space Mono", monospace; }
-  .counter .row2 { display: flex; gap: 10px; }
-  .counter .row2 .btn { flex: 1; }
-  .codein { font: 700 28px/1 "Space Mono", monospace !important; letter-spacing: .3em; text-align: center; text-transform: uppercase; }
+  .nextline { margin-top: 6px; font-size: 16px; }
+  .nextline strong { font: 600 22px/1.2 Fraunces, serif; color: var(--on-dark); }
 </style>
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="/">aristotl<span>.es</span></a>
-  <div class="row" style="gap: 8px"><span class="tpill hidden" id="tPill"></span><span class="chip" id="sessChip">Feedback</span></div>
+  <div class="row" style="gap: 8px"><span class="chip hidden" id="meChip"></span><span class="chip" id="sessChip">Meetup</span></div>
 </header>
 
 <main class="wrap">
-  <!-- no code -->
+  <!-- 1. session code -->
   <section id="join" class="card stack hidden">
-    <div class="kicker">Live feedback</div>
+    <div class="kicker">Live session</div>
     <h1>Join the <em>session</em></h1>
     <p class="soft">Type the code shown on the screen.</p>
     <form id="joinForm" class="stack">
       <input id="codeIn" class="codein" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" required>
-      <button class="btn block" type="submit">Join →</button>
+      <button class="btn block" type="submit">Next →</button>
     </form>
   </section>
 
-  <!-- waiting -->
-  <section id="waiting" class="card done hidden">
-    <div class="big">🎤</div>
-    <h2>Waiting for the <em>next speaker</em></h2>
-    <p class="soft">Keep this page open. It will switch on by itself as soon as voting opens.</p>
-    <p class="nextline hidden" id="nextLine"><span class="soft">Next up:</span> <strong id="nextName"></strong></p>
-    <p id="techLink" class="small hidden"></p>
-    <div class="card stack" style="margin-top: 18px; text-align: left">
-      <strong>💡 Be the speaker's time light</strong>
-      <p class="small soft" style="margin: 0">15 seconds before time runs out, this screen will flash amber, then red. Hold your phone up so the speaker can see it.</p>
-      <label class="lightopt hidden" id="torchOpt"><input type="checkbox" id="torchChk"> <span>Also flash my phone's torch twice at 15 s (needs camera permission, Android only)</span></label>
-      <p class="small soft hidden" id="torchMsg" style="margin: 0"></p>
-    </div>
+  <!-- 2. register -->
+  <section id="register" class="card stack hidden">
+    <div class="kicker" id="regKicker">Welcome</div>
+    <h1>What's your <em>name?</em></h1>
+    <form id="regForm" class="stack">
+      <input id="nameIn" type="text" maxlength="40" autocomplete="given-name" placeholder="First name" required>
+      <label class="opt"><input type="checkbox" id="speakIn" checked><span>I'm giving a speech tonight<small>You'll be added to the speakers list.</small></span></label>
+      <label class="opt" id="filmOpt"><input type="checkbox" id="filmIn" checked><span>🎥 Film my speech for video feedback<small>Watching yourself is the fastest way to improve: you see the habits the room noticed — pace, “um”s, hands — next to their scores. The video is unlisted on YouTube and only you get the link.</small></span></label>
+      <button class="btn block" type="submit">Join →</button>
+      <div id="regErr" class="notice err hidden"></div>
+    </form>
   </section>
 
-  <!-- voting -->
+  <!-- shown above every live screen -->
+  <div id="liveTop" class="hidden">
+    <div class="card bigtimer hidden" id="bigTimer"><div class="l" id="btLabel">Speech timer</div><div class="t" id="btTime">0:00</div><div class="tprog"><span id="btBar"></span></div></div>
+    <div class="card stack duty hidden" id="duty" style="margin-bottom: 14px"></div>
+    <div class="card stack hidden" id="myCard" style="margin-bottom: 14px"></div>
+  </div>
+
+  <!-- 3a. waiting -->
+  <section id="waiting" class="hidden">
+    <div class="card done">
+      <div class="big">🎤</div>
+      <h2>Waiting for the <em>next speaker</em></h2>
+      <p class="soft">Keep this page open. It switches on by itself.</p>
+      <p class="nextline hidden" id="nextLine"><span class="soft">Next up:</span> <strong id="nextName"></strong></p>
+      <p id="techLink" class="small hidden"></p>
+    </div>
+    <div class="card stack" style="margin-top: 14px">
+      <strong>💡 You're the speaker's time light</strong>
+      <p class="small soft" style="margin: 0">15 seconds before the end this screen flashes amber, then red until the host stops the timer. Hold your phone up so the speaker can see it.</p>
+      <label class="opt hidden" id="torchOpt"><input type="checkbox" id="torchChk"><span>Also use my phone's torch<small>Two flashes at 15 s, then flashing when time is up. Android only, asks for camera permission.</small></span></label>
+      <p class="small soft hidden" id="torchMsg" style="margin: 0"></p>
+    </div>
+    <div class="card stack" style="margin-top: 14px" id="volCard">
+      <strong>🎥 Filming tonight</strong>
+      <p class="small soft" style="margin: 0" id="volTxt">Everyone films the next speaker in turn — your phone will tell you when it's your turn. Or take over all the filming yourself:</p>
+      <div><button class="btn ghost small" type="button" id="volBtn">🙋 I'll film everyone tonight</button></div>
+    </div>
+    <p class="small soft" style="text-align:center;margin-top:16px"><a href="#" id="editMe">Change my name or options</a></p>
+  </section>
+
+  <!-- 3b. I'm speaking -->
+  <section id="speaking" class="card done hidden">
+    <div class="big">🌟</div>
+    <h2>You're on, <em id="spName"></em>!</h2>
+    <p class="soft">Breathe, find a friendly face, and enjoy it. Everyone's phone will flash 15 seconds before your time is up.</p>
+  </section>
+
+  <!-- 3c. voting -->
   <form id="vote" class="hidden" novalidate>
     <div class="kicker">Now speaking</div>
     <div class="speaker" id="speakerName"></div>
@@ -103,7 +158,7 @@
     </div>
   </form>
 
-  <!-- thanks -->
+  <!-- 3d. thanks -->
   <section id="thanks" class="card done hidden">
     <div class="big">✨</div>
     <h2>Thank you</h2>
@@ -113,10 +168,21 @@
 
   <div id="err" class="notice err hidden" style="margin-top: 14px"></div>
 </main>
+
+<!-- camera view (filming duty) -->
+<div class="camview hidden" id="camView">
+  <video id="camVideo" playsinline muted autoplay></video>
+  <div class="top"><span class="tag" id="camTag">Camera ready</span><span class="rec hidden" id="camRec"><i></i><span id="camTime">0:00</span></span></div>
+  <div class="bar">
+    <span class="small" id="camHint">Hold the phone sideways, aim at the speaker. Recording starts and stops by itself.</span>
+    <div class="row" style="gap: 8px; flex: none"><button class="btn small" type="button" id="camRecBtn">● Record</button><button class="btn ghost small" type="button" id="camHide" style="color:#fff">Hide</button></div>
+  </div>
+</div>
+
 <div class="counter hidden" id="counter" role="dialog" aria-label="Filler word counter">
   <div class="top"><div><div class="kicker" style="margin:0">Filler counter</div><strong id="umWho"></strong></div><button class="btn ghost small" type="button" id="umClose">Done</button></div>
   <button class="tap" type="button" id="umTap"><span class="n" id="umN">0</span><span>Tap for every “um”, “uh”, “so”, “like”</span></button>
-  <div class="row2"><button class="btn ghost" type="button" id="umMinus">−1 undo</button></div>
+  <div><button class="btn ghost block" type="button" id="umMinus">−1 undo</button></div>
   <p class="small soft" style="text-align:center;margin:10px 0 0" id="umSync">Saved automatically</p>
 </div>
 <div class="flash hidden" id="flash"><div class="big" id="flashN">15</div><div class="msg" id="flashMsg">Wrap it up</div><div class="hint">Hold your phone up · tap to hide</div></div>
@@ -124,21 +190,60 @@
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
 <script src="assets/tools.js"></script>
+<script src="assets/recorder.js"></script>
 <script>
 (() => {
-  const { $, $$, esc, api, store, voterId, CRITERIA, param } = AT;
+  const { $, $$, esc, store, voterId, CRITERIA, param } = AT;
   const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
   let code = (param("c") || "").toUpperCase();
-  let current = null, editing = false, timer = null;
+  let current = null, me = null, editing = false, pollTimer = null, lastLive = null, registering = false;
   const scores = {};
-
-  function show(id) { ["join", "waiting", "vote", "thanks"].forEach(s => $("#" + s).classList.toggle("hidden", s !== id)); }
+  const SCREENS = ["join", "register", "waiting", "speaking", "vote", "thanks"];
+  function show(id) { SCREENS.forEach(s => $("#" + s).classList.toggle("hidden", s !== id)); $("#liveTop").classList.toggle("hidden", ["join", "register"].includes(id)); }
   function err(el, msg) { el.textContent = msg || ""; el.classList.toggle("hidden", !msg); }
 
-  // build criteria
+  /* ---------- identity for this session (kept on this phone) ---------- */
+  const partKey = () => "aristotles.part." + code;
+  const part = () => store.get(partKey());
+  const partHeader = () => { const p = part(); return p ? { "X-Participant": p.id + "." + p.secret } : {}; };
+  async function papi(path, { method = "GET", body } = {}) {
+    const h = { ...partHeader() }; if (body !== undefined) h["Content-Type"] = "application/json";
+    let res;
+    try { res = await fetch(AT.API + "/api" + path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    catch { throw new Error("Can't reach the server. Check the connection."); }
+    let data = {}; try { data = await res.json(); } catch {}
+    if (!res.ok) { const e = new Error(data.error || "Error " + res.status); e.status = res.status; throw e; }
+    return data;
+  }
+
+  /* ---------- join & register ---------- */
+  $("#joinForm").addEventListener("submit", (e) => { e.preventDefault(); code = $("#codeIn").value.trim().toUpperCase(); history.replaceState(null, "", "?c=" + code); begin(); });
+  $("#speakIn").addEventListener("change", () => $("#filmOpt").classList.toggle("hidden", !$("#speakIn").checked));
+  function openRegister() {
+    registering = true;
+    const p = part();
+    $("#nameIn").value = p?.name || store.get("aristotles.myname") || "";
+    if (p) { $("#speakIn").checked = p.speaking !== false; $("#filmIn").checked = p.film !== false; }
+    $("#filmOpt").classList.toggle("hidden", !$("#speakIn").checked);
+    show("register"); setTimeout(() => $("#nameIn").focus(), 50);
+  }
+  $("#editMe").addEventListener("click", (e) => { e.preventDefault(); openRegister(); });
+  $("#regForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked };
+      const r = await papi(`/sessions/${code}/join`, { method: "POST", body });
+      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film });
+      store.set("aristotles.myname", body.name);
+      err($("#regErr"), ""); registering = false; keepAwake(); poll();
+    } catch (ex) { err($("#regErr"), ex.message); } finally { btn.disabled = false; }
+  });
+
+  /* ---------- voting form ---------- */
   $("#crits").innerHTML = CRITERIA.map(c => `
     <div class="crit-row" style="--cc:${c.hex}">
-      <div class="crit-head"><span class="crit-name" style="color:${c.hex}">${c.label}</span></div>
+      <span class="crit-name" style="color:${c.hex}">${c.label}</span>
       <div class="crit-hint">${c.hint}</div>
       <div class="scale" role="radiogroup" aria-label="${c.label}">
         ${[1, 2, 3, 4, 5].map(n => `<button type="button" data-k="${c.key}" data-v="${n}" aria-pressed="false" aria-label="${c.label} ${n}">${n}</button>`).join("")}
@@ -148,7 +253,7 @@
   $("#crits").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-k]"); if (!b) return;
     scores[b.dataset.k] = Number(b.dataset.v);
-    $$(`button[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    $$(`#crits button[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     navigator.vibrate?.(8);
     $("#sendBtn").disabled = CRITERIA.some(c => !scores[c.key]);
   });
@@ -157,69 +262,136 @@
     $$("#crits button").forEach(x => x.setAttribute("aria-pressed", "false"));
     $("#worked").value = ""; $("#next").value = ""; $("#sendBtn").disabled = true;
   }
-
-  $("#joinForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    code = $("#codeIn").value.trim().toUpperCase();
-    history.replaceState(null, "", "?c=" + code);
-    begin();
-  });
-
-  async function poll() {
+  $("#vote").addEventListener("submit", async (e) => {
+    e.preventDefault(); if (!current) return;
+    const btn = $("#sendBtn"); btn.disabled = true; btn.textContent = "Sending…";
     try {
-      const { session, speech, timer, next } = await api(`/sessions/${code}/live`);
+      await papi(`/speeches/${current.id}/votes`, { method: "POST", body: { voter: voterId(), ...scores, worked: $("#worked").value, next_rep: $("#next").value } });
+      const sent = store.get("aristotles.sent") || []; sent.push(current.id); store.set("aristotles.sent", sent.slice(-50));
+      editing = false; err($("#voteErr"), ""); $("#thanksName").textContent = current.speaker; show("thanks");
+    } catch (ex) { err($("#voteErr"), ex.status === 409 ? "Voting just closed for this speaker." : ex.message); }
+    finally { btn.textContent = "Send feedback"; btn.disabled = false; }
+  });
+  $("#editBtn").addEventListener("click", () => { editing = true; show("vote"); });
+
+  /* ---------- live polling ---------- */
+  async function poll() {
+    if (registering) return;
+    try {
+      const live = await papi(`/sessions/${code}/live`);
+      lastLive = live; err($("#err"), "");
+      const { session, speech, timer, next } = live;
+      $("#sessChip").textContent = session.title;
+      $("#regKicker").textContent = session.title;
+      if (!live.me) { if (part()) store.del(partKey()); return openRegister(); }
+      me = live.me;
+      $("#meChip").textContent = "👤 " + me.name; $("#meChip").classList.remove("hidden");
       applyTimer(timer);
       $("#nextLine").classList.toggle("hidden", !next); if (next) $("#nextName").textContent = next;
-      if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
-      err($("#err"), "");
-      $("#sessChip").textContent = session.title;
       const t = techBySlug[session.technique];
       if (t) { $("#techLink").innerHTML = `Tonight's technique: <a href="technique/${t.slug}.html">${esc(t.title)} →</a>`; $("#techLink").classList.remove("hidden"); }
+      renderMyCard(); renderDuty(speech); renderVolunteer(session);
+      if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
       if (!speech) { current = null; editing = false; return show("waiting"); }
+      if (me.speech && me.speech.id === speech.id) { current = speech; $("#spName").textContent = me.name; return show("speaking"); }
       if (!current || current.id !== speech.id) { current = speech; editing = false; resetForm(); }
       $("#speakerName").textContent = speech.speaker;
       const sent = (store.get("aristotles.sent") || []).includes(speech.id);
       if (sent && !editing) { $("#thanksName").textContent = speech.speaker; show("thanks"); }
       else if ($("#vote").classList.contains("hidden")) show("vote");
     } catch (ex) {
-      if (ex.status === 404) { clearInterval(timer); show("join"); err($("#err"), "That code doesn't match a session. Check the screen and try again."); return; }
+      if (ex.status === 404) { clearInterval(pollTimer); show("join"); err($("#err"), "That code doesn't match a session. Check the screen and try again."); return; }
       err($("#err"), ex.message);
     }
   }
 
-  $("#vote").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!current) return;
-    const btn = $("#sendBtn"); btn.disabled = true; btn.textContent = "Sending…";
-    try {
-      await api(`/speeches/${current.id}/votes`, { method: "POST", body: { voter: voterId(), ...scores, worked: $("#worked").value, next_rep: $("#next").value } });
-      const sent = store.get("aristotles.sent") || []; sent.push(current.id); store.set("aristotles.sent", sent.slice(-50));
-      editing = false; err($("#voteErr"), "");
-      $("#thanksName").textContent = current.speaker; show("thanks");
-    } catch (ex) {
-      err($("#voteErr"), ex.status === 409 ? "Voting just closed for this speaker." : ex.message);
-    } finally { btn.textContent = "Send feedback"; btn.disabled = false; }
+  function renderMyCard() {
+    const c = $("#myCard"), s = me.speech;
+    if (s && s.status === "closed") {
+      c.innerHTML = `<strong>🎉 Your speech is done</strong><p class="small soft" style="margin:0">Rate yourself, then see how the room saw you — and keep it in your speaker passport.</p><div><a class="btn small" href="speech.html?id=${encodeURIComponent(s.id)}&k=${encodeURIComponent(s.result_token)}">See my feedback card →</a></div>`;
+      c.classList.remove("hidden");
+    } else if (s && s.status === "waiting") {
+      c.innerHTML = `<span class="small soft">You're on the speakers list${s.film ? " · 🎥 your speech will be filmed" : ""}.</span>`;
+      c.classList.remove("hidden");
+    } else c.classList.add("hidden");
+  }
+  function renderVolunteer(session) {
+    const mine = me.camera_person;
+    $("#volTxt").textContent = mine ? "You're the camera person tonight: your phone films every speaker. Thank you!"
+      : session.camera_mode === "single" ? "Someone is filming everyone tonight. You can take over if needed:"
+      : session.camera_mode === "camera" ? "A dedicated camera phone is filming tonight." : "Everyone films the next speaker in turn — your phone will tell you when it's your turn. Or take over all the filming yourself:";
+    $("#volBtn").textContent = mine ? "Stop being the camera person" : "🙋 I'll film everyone tonight";
+    $("#volBtn").parentElement.classList.toggle("hidden", session.camera_mode === "camera" && !mine);
+  }
+  $("#volBtn").addEventListener("click", async () => {
+    try { await papi(`/sessions/${code}/volunteer`, { method: "POST", body: { stop: !!me?.camera_person } }); poll(); } catch (ex) { alert(ex.message); }
   });
-  $("#editBtn").addEventListener("click", () => { editing = true; show("vote"); });
+
+  /* ---------- filming duty ---------- */
+  const rec = ATRecorder({ headers: partHeader, onChange: () => { renderDuty(lastLive?.speech); renderCam(); } });
+  let camHidden = false, manualStop = new Set();
+  function renderDuty(speech) {
+    const d = $("#duty"), f = me?.film;
+    if (!f && !rec.rec && !rec.queue.length) { d.classList.add("hidden"); return; }
+    let html = "";
+    if (rec.rec) html += `<div class="kicker" style="margin:0;color:#FF7A6E">● Recording</div><div class="who">${esc(rec.recSpeech.speaker)}</div>`;
+    else if (f) {
+      const when = f.when === "now" ? "is speaking — film now!" : f.when === "next" ? "speaks next" : "speaks later";
+      html += `<div class="kicker" style="margin:0;color:#FF7A6E">🎥 Your turn to film</div><div class="who">${esc(f.speaker)} <span class="small soft" style="font-family:Inter">${when}</span></div>`;
+      html += rec.stream ? `<div class="row"><button class="btn small" data-cam="show">Show camera</button><span class="small soft">Ready — recording starts by itself.</span></div>`
+        : `<div class="row"><button class="btn small" data-cam="open">📷 Get the camera ready</button><span class="small soft">Hold the phone sideways.</span></div>`;
+    }
+    for (const q of rec.queue.slice(-3)) {
+      const pct = q.blob.size ? Math.round(q.received / q.blob.size * 100) : 0;
+      const st = q.state === "done" ? "✓ Uploaded to YouTube" : q.state === "uploading" ? `Uploading… ${pct}%` : q.state === "error" ? `⚠ ${esc(q.err)}` : "Waiting to upload…";
+      html += `<div class="uprow">🎞 ${esc(q.speech.speaker)} · ${st}${q.state === "error" ? ` <a href="#" data-retry="${rec.queue.indexOf(q)}">Retry</a>` : ""}<div class="bar"><span style="width:${q.state === "done" ? 100 : pct}%"></span></div></div>`;
+    }
+    if (rec.pending()) html += `<p class="small soft" style="margin:0">Keep this page open until the upload is done.</p>`;
+    d.innerHTML = html; d.classList.toggle("now", f?.when === "now" || !!rec.rec); d.classList.remove("hidden");
+  }
+  $("#duty").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-cam]"), r = e.target.closest("[data-retry]");
+    if (r) { e.preventDefault(); rec.retry(rec.queue[r.dataset.retry]); return; }
+    if (!b) return;
+    if (b.dataset.cam === "open") {
+      try { stopTorch(); await rec.open(); $("#camVideo").srcObject = rec.stream; camHidden = false; renderCam(); followCamera(); }
+      catch (ex) { alert("Couldn't open the camera: " + ex.message); }
+    } else { camHidden = false; renderCam(); }
+  });
+  $("#camHide").addEventListener("click", () => { camHidden = true; renderCam(); });
+  $("#camRecBtn").addEventListener("click", () => {
+    if (rec.rec) { manualStop.add(rec.recSpeech.id); rec.stop(); }
+    else if (lastLive?.speech && me?.film?.speech_id === lastLive.speech.id) { manualStop.delete(lastLive.speech.id); rec.start(lastLive.speech); }
+  });
+  function renderCam() {
+    const v = $("#camView");
+    v.classList.toggle("hidden", !rec.stream || camHidden);
+    $("#camRec").classList.toggle("hidden", !rec.rec);
+    const f = me?.film;
+    $("#camTag").textContent = rec.rec ? `Filming ${rec.recSpeech.speaker}` : f ? `${f.speaker} ${f.when === "now" ? "is on" : "is next"} — ready` : "Camera ready";
+    $("#camRecBtn").textContent = rec.rec ? "■ Stop" : "● Record";
+    $("#camRecBtn").disabled = !rec.rec && !(lastLive?.speech && f?.speech_id === lastLive.speech.id);
+  }
+  // auto start/stop with the speech the host opens
+  function followCamera() {
+    const sp = lastLive?.speech, f = me?.film;
+    if (rec.rec && (!sp || sp.id !== rec.recSpeech.id)) rec.stop();
+    if (!rec.rec && rec.stream && sp && f && f.speech_id === sp.id && f.when === "now" && !manualStop.has(sp.id) && !rec.filmed(sp.id)) { rec.start(sp); camHidden = false; }
+    if (!rec.rec && rec.stream && !f && !rec.pending()) rec.close();           // no more duty: free the camera
+    renderCam();
+  }
+  setInterval(followCamera, 1000);
+  setInterval(() => { if (rec.rec) { const t = Math.round((Date.now() - rec.recStart) / 1000); $("#camTime").textContent = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); } }, 500);
 
   /* ---------- filler counter ---------- */
   const counterId = () => { let v = store.get("aristotles.counter"); if (!v) { v = AT.randomId(16); store.set("aristotles.counter", v); } return v; };
   let umSpeech = null, umCount = 0, umTimer = null;
-  function openCounter() {
-    if (!current) return;
-    umSpeech = current.id; umCount = Number(store.get("aristotles.um." + umSpeech) || 0);
-    $("#umWho").textContent = current.speaker; $("#umN").textContent = umCount;
-    $("#counter").classList.remove("hidden");
-  }
+  function openCounter() { if (!current) return; umSpeech = current.id; umCount = Number(store.get("aristotles.um." + umSpeech) || 0); $("#umWho").textContent = current.speaker; $("#umN").textContent = umCount; $("#counter").classList.remove("hidden"); }
   function closeCounter() { $("#counter").classList.add("hidden"); flushUm(); }
-  function bump(d) {
-    umCount = Math.max(0, umCount + d); $("#umN").textContent = umCount;
-    store.set("aristotles.um." + umSpeech, umCount); navigator.vibrate?.(15);
-    $("#umSync").textContent = "Saving…"; clearTimeout(umTimer); umTimer = setTimeout(flushUm, 700);
-  }
+  function bump(d) { umCount = Math.max(0, umCount + d); $("#umN").textContent = umCount; store.set("aristotles.um." + umSpeech, umCount); navigator.vibrate?.(15); $("#umSync").textContent = "Saving…"; clearTimeout(umTimer); umTimer = setTimeout(flushUm, 700); }
   async function flushUm() {
     clearTimeout(umTimer); if (!umSpeech) return;
-    try { await api(`/speeches/${umSpeech}/fillers`, { method: "POST", body: { counter: counterId(), count: umCount } }); $("#umSync").textContent = "Saved ✓"; }
+    try { await papi(`/speeches/${umSpeech}/fillers`, { method: "POST", body: { counter: counterId(), count: umCount } }); $("#umSync").textContent = "Saved ✓"; }
     catch (ex) { $("#umSync").textContent = ex.status === 409 ? "Counting closed for this speaker" : "Not saved yet — will retry"; if (ex.status !== 409) umTimer = setTimeout(flushUm, 3000); }
   }
   $("#umOpen").addEventListener("click", openCounter);
@@ -227,54 +399,49 @@
   $("#umTap").addEventListener("click", () => bump(1));
   $("#umMinus").addEventListener("click", () => bump(-1));
 
-  /* ---------- time light ---------- */
-  let tEnd = null, dismissedFor = null, lastPhase = null, torchTrack = null, torchOn = false, wakeLock = null;
-  function applyTimer(t) { tEnd = t && t.remaining_ms > -60000 ? Date.now() + t.remaining_ms : null; }
-  async function setTorch(on) {
-    if (!torchTrack || torchOn === on) return;
-    try { await torchTrack.applyConstraints({ advanced: [{ torch: on }] }); torchOn = on; } catch {}
-  }
-  function lightTick() {
-    const pill = $("#tPill"), fl = $("#flash");
-    if (!tEnd) { pill.classList.add("hidden"); fl.classList.add("hidden"); setTorch(false); lastPhase = null; return; }
-    const ms = tEnd - Date.now(), left = Math.ceil(ms / 1000);
-    const phase = left > 15 ? "run" : left > 0 ? "warn" : ms > -6000 ? "over" : "done";
-    const a = Math.abs(left);
-    pill.textContent = (left < 0 ? "+" : "") + Math.floor(a / 60) + ":" + String(a % 60).padStart(2, "0");
-    pill.className = "tpill" + (phase === "warn" ? " warn" : phase === "over" || phase === "done" ? " over" : "");
-    if (phase !== lastPhase) {
-      if (phase === "warn") { navigator.vibrate?.([200, 100, 200]); if (lastPhase === "run") blinkTwice(); }
-      if (phase === "over") navigator.vibrate?.([600]);
-      lastPhase = phase;
-    }
-    const hidden = dismissedFor === tEnd;
-    if ((phase === "warn" || phase === "over") && !hidden) {
-      fl.classList.remove("hidden");
-      fl.className = "flash " + phase;
-      $("#flashN").textContent = phase === "warn" ? left : "TIME";
-      $("#flashMsg").textContent = phase === "warn" ? "seconds left — wrap it up" : "Time's up!";
-    } else fl.classList.add("hidden");
-  }
-  // torch: two short flashes at the 15-second mark, nothing else
+  /* ---------- timer & time light ---------- */
+  let tEnd = null, tTotal = 0, dismissedFor = null, lastPhase = null, torchTrack = null, torchOn = false, wakeLock = null;
+  function applyTimer(t) { if (t) { tEnd = Date.now() + t.remaining_ms; tTotal = t.duration; } else tEnd = null; }
+  async function setTorch(on) { if (!torchTrack || torchOn === on) return; try { await torchTrack.applyConstraints({ advanced: [{ torch: on }] }); torchOn = on; } catch {} }
   let blinking = false;
   async function blinkTwice() {
-    if (!torchTrack || blinking) return;
-    blinking = true;
+    if (!torchTrack || blinking) return; blinking = true;
     const wait = ms => new Promise(r => setTimeout(r, ms));
     for (let i = 0; i < 2; i++) { await setTorch(true); await wait(350); await setTorch(false); await wait(300); }
     blinking = false;
   }
+  function lightTick() {
+    const bt = $("#bigTimer"), fl = $("#flash");
+    if (!tEnd) { bt.classList.add("hidden"); fl.classList.add("hidden"); if (!blinking) setTorch(false); lastPhase = null; return; }
+    const ms = tEnd - Date.now(), left = Math.ceil(ms / 1000);
+    const phase = left > 15 ? "run" : left > 0 ? "warn" : "over";        // "over" lasts until the host stops the timer
+    const a = Math.abs(left);
+    bt.classList.remove("hidden"); bt.className = "card bigtimer" + (phase === "run" ? "" : " " + phase);
+    $("#btTime").textContent = (left < 0 ? "+" : "") + Math.floor(a / 60) + ":" + String(a % 60).padStart(2, "0");
+    $("#btLabel").textContent = phase === "over" ? "Time's up" : phase === "warn" ? "Wrap it up" : "Speech timer";
+    $("#btBar").style.width = Math.min(100, Math.max(0, (1 - left / (tTotal || 1)) * 100)) + "%";
+    if (phase !== lastPhase) {
+      if (phase === "warn") { navigator.vibrate?.([200, 100, 200]); if (lastPhase === "run") blinkTwice(); }
+      if (phase === "over") navigator.vibrate?.([600, 200, 600]);
+      lastPhase = phase;
+    }
+    const filming = !!rec.stream;                     // the camera phone faces the speaker but shows the preview instead
+    if ((phase === "warn" || phase === "over") && dismissedFor !== tEnd && !filming) {
+      fl.classList.remove("hidden"); fl.className = "flash " + phase;
+      $("#flashN").textContent = phase === "warn" ? left : "TIME";
+      $("#flashMsg").textContent = phase === "warn" ? "seconds left — wrap it up" : "Time's up!";
+    } else fl.classList.add("hidden");
+    if (phase === "over" && !blinking) setTorch(Math.floor(Date.now() / 400) % 2 === 0);   // keep flashing until stopped
+    else if (phase === "run" && !blinking) setTorch(false);
+  }
   setInterval(lightTick, 200);
   $("#flash").addEventListener("click", () => { dismissedFor = tEnd; $("#flash").classList.add("hidden"); });
 
-  // keep the screen awake while the session page is open
   async function keepAwake() { try { if (!wakeLock && navigator.wakeLock && !document.hidden) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch {} }
-  document.addEventListener("click", keepAwake, { once: true });
-  document.addEventListener("visibilitychange", keepAwake);
+  document.addEventListener("click", keepAwake);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { keepAwake(); poll(); } });
 
-  // real torch: only where the browser supports it (Chrome on Android).
-  // Many Android phones have several back cameras and only one has the torch, and some only report
-  // the torch once the video is actually playing, so we try each back camera and wait a moment.
+  // torch (Chrome on Android): try each back camera; some only report the torch once the video plays
   const torchVideo = Object.assign(document.createElement("video"), { muted: true, playsInline: true });
   Object.assign(torchVideo.style, { position: "fixed", width: "1px", height: "1px", opacity: "0", pointerEvents: "none", bottom: "0", left: "0" });
   document.body.appendChild(torchVideo);
@@ -282,10 +449,7 @@
     const stream = await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
     const track = stream.getVideoTracks()[0];
     torchVideo.srcObject = stream; try { await torchVideo.play(); } catch {}
-    for (let i = 0; i < 10; i++) {                      // wait up to ~1.5 s for capabilities to appear
-      if (track.getCapabilities?.().torch) return track;
-      await new Promise(r => setTimeout(r, 150));
-    }
+    for (let i = 0; i < 10; i++) { if (track.getCapabilities?.().torch) return track; await new Promise(r => setTimeout(r, 150)); }
     track.stop(); return null;
   }
   async function findTorchTrack() {
@@ -297,29 +461,32 @@
     for (const c of cams) { t = await tryTrack({ deviceId: { exact: c.deviceId } }).catch(() => null); if (t) return t; }
     throw new Error("no torch");
   }
+  function stopTorch() { setTorch(false); torchTrack?.stop(); torchTrack = null; torchOn = false; $("#torchChk").checked = false; }
   const isiOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (!isiOS && navigator.mediaDevices?.getUserMedia && /Android/i.test(navigator.userAgent)) $("#torchOpt").classList.remove("hidden");
   $("#torchChk").addEventListener("change", async (e) => {
     const msg = $("#torchMsg");
-    if (!e.target.checked) { await setTorch(false); torchTrack?.stop(); torchTrack = null; msg.classList.add("hidden"); return; }
+    if (!e.target.checked) { stopTorch(); msg.classList.add("hidden"); return; }
+    if (rec.stream) { e.target.checked = false; msg.textContent = "Your camera is busy filming — the screen flash will be used instead."; msg.classList.remove("hidden"); return; }
     msg.textContent = "Looking for the torch…"; msg.classList.remove("hidden");
     try {
       torchTrack = await findTorchTrack();
       await setTorch(true); await new Promise(r => setTimeout(r, 400)); await setTorch(false);
-      msg.textContent = "✓ Torch ready: it will flash twice 15 seconds before the end. Keep this page open.";
+      msg.textContent = "✓ Torch ready. Keep this page open.";
     } catch (ex) {
       e.target.checked = false;
-      msg.textContent = ex.name === "NotAllowedError"
-        ? "The camera permission was refused, so the torch can't be used. The screen flash will still work."
+      msg.textContent = ex.name === "NotAllowedError" ? "The camera permission was refused, so the torch can't be used. The screen flash will still work."
         : "This phone doesn't let web pages use its torch. The screen flash will still work.";
     }
   });
 
   function begin() {
     if (!code) return show("join");
-    poll(); clearInterval(timer);
-    timer = setInterval(() => { if (!document.hidden) poll(); }, 3000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+    if (!part()) { papi(`/sessions/${code}/live`).then(l => { $("#regKicker").textContent = l.session.title; openRegister(); })
+      .catch(ex => { show("join"); err($("#err"), ex.status === 404 ? "That code doesn't match a session. Check the screen and try again." : ex.message); }); }
+    else poll();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if (!document.hidden) poll(); }, 2500);
   }
   begin();
 })();
