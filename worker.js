@@ -80,6 +80,7 @@ async function route(request, env) {
   if (a === "sessions" && b && c === "live" && m === "GET") return liveState(request, env, b);
   if (a === "sessions" && b && c === "join" && m === "POST") return joinSession(request, env, b);
   if (a === "sessions" && b && c === "volunteer" && m === "POST") return volunteer(request, env, b);
+  if (a === "speeches" && b && c === "start" && m === "POST") return speakerStart(request, env, b);
   if (a === "speeches" && b && c === "votes" && m === "POST") return castVote(request, env, b);
   if (a === "speeches" && b && c === "fillers" && m === "POST") return countFillers(request, env, b);
 
@@ -124,7 +125,7 @@ async function listSessions(env) {
 async function getSessionForHost(env, code) {
   const session = await mustGetSession(env, code);
   const { results } = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id,
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic,
             COUNT(v.voter) AS votes
        FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
       WHERE sp.session_code = ?
@@ -143,11 +144,17 @@ async function getSessionForHost(env, code) {
    Stored as an absolute end time (ms); clients get "remaining_ms" so their own clock doesn't matter. */
 const TIMER_MAX = 60 * 60;
 const OVERTIME_MAX_MS = 3 * 60 * 1000;
+const PREP_MS = 5000;                                   // "get ready" countdown before the speech clock starts
 function timerState(session) {
   if (!session.timer_end) return null;
   const remaining = session.timer_end - Date.now();
   if (remaining < -OVERTIME_MAX_MS) return null;       // forgotten timer: stop flashing after 3 minutes over
-  return { duration: session.timer_duration, remaining_ms: remaining };
+  return { duration: session.timer_duration, remaining_ms: remaining, prep_ms: Math.max(0, remaining - session.timer_duration * 1000) };
+}
+async function startClock(env, code, seconds) {
+  const end = Date.now() + PREP_MS + seconds * 1000;
+  await env.DB.prepare("UPDATE sessions SET timer_end = ?, timer_duration = ? WHERE code = ?").bind(end, seconds, code).run();
+  return { duration: seconds, remaining_ms: PREP_MS + seconds * 1000, prep_ms: PREP_MS };
 }
 async function setTimer(request, env, code) {
   const session = await mustGetSession(env, code);
@@ -156,11 +163,20 @@ async function setTimer(request, env, code) {
     await env.DB.prepare("UPDATE sessions SET timer_end = NULL WHERE code = ?").bind(session.code).run();
     return json({ timer: null });
   }
-  const seconds = Number(body.seconds);
+  if (body.action === "add") {                          // +N seconds to a running clock
+    if (!session.timer_end) throw new HttpError(409, "The timer isn't running");
+    const add = Math.max(5, Math.min(600, Number(body.seconds) || 30));
+    await env.DB.prepare("UPDATE sessions SET timer_end = timer_end + ?, timer_duration = timer_duration + ? WHERE code = ?").bind(add * 1000, add, session.code).run();
+    return json({ timer: timerState({ ...session, timer_end: session.timer_end + add * 1000, timer_duration: session.timer_duration + add }) });
+  }
+  const seconds = body.action === "reset" ? Number(session.timer_duration) || 120 : Number(body.seconds);
   if (!Number.isInteger(seconds) || seconds < 5 || seconds > TIMER_MAX) throw new HttpError(400, "Timer must be between 5 seconds and 60 minutes");
-  const end = Date.now() + seconds * 1000;
-  await env.DB.prepare("UPDATE sessions SET timer_end = ?, timer_duration = ? WHERE code = ?").bind(end, seconds, session.code).run();
-  return json({ timer: { duration: seconds, remaining_ms: seconds * 1000 } });
+  if (body.action === "set") {                          // just remember the length for the next speech
+    if (timerState(session)) return json({ timer: timerState(session), duration: session.timer_duration }); // don't change a running clock
+    await env.DB.prepare("UPDATE sessions SET timer_duration = ? WHERE code = ?").bind(seconds, session.code).run();
+    return json({ timer: timerState(session), duration: seconds });
+  }
+  return json({ timer: await startClock(env, session.code, seconds) });
 }
 
 async function addSpeech(request, env, code) {
@@ -228,13 +244,13 @@ async function liveState(request, env, code) {
   const next = await env.DB.prepare(
     "SELECT speaker FROM speeches WHERE session_code = ? AND status = 'waiting' ORDER BY created_at ASC, rowid ASC LIMIT 1"
   ).bind(session.code).first();
-  const out = { session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation" },
+  const out = { session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation", duration: Number(session.timer_duration) || 120 },
     speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id } : null,
     next: next ? next.speaker : null, timer: timerState(session) };
   const me = await participantFromRequest(request, env, session.code);
   if (me) {
     const { results: list } = await env.DB.prepare(
-      "SELECT id, speaker, status, film, filmer, participant_id, result_token, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
+      "SELECT id, speaker, status, film, filmer, participant_id, result_token, topic, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
     ).bind(session.code).all();
     const plan = await filmingPlan(env, session, list);
     const mine = list.find(x => x.participant_id === me.id);
@@ -243,7 +259,7 @@ async function liveState(request, env, code) {
     const firstWaiting = pending.find(x => x.status === "waiting");
     out.me = {
       id: me.id, name: me.name,
-      speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film } : null,
+      speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film, topic: mine.topic } : null,
       film: duty ? { speech_id: duty.id, speaker: duty.speaker, when: duty.status === "open" ? "now" : duty.id === firstWaiting?.id ? "next" : "later" } : null,
       camera_person: session.camera_mode === "single" && session.camera_person === me.id,
     };
@@ -274,10 +290,11 @@ async function joinSession(request, env, code) {
   const name = clean(body.name, 60);
   if (!name) throw new HttpError(400, "Please enter your name");
   const speaking = body.speaking !== false, film = body.film === false ? 0 : 1;
+  const topic = clean(body.topic, 120) || null;
   let p = await participantFromRequest(request, env, session.code);
   if (p) {
     await env.DB.prepare("UPDATE participants SET name = ? WHERE id = ?").bind(name, p.id).run();
-    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, p.id).run();
+    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ?, topic = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, topic, p.id).run();
   } else {
     p = { id: randomId(10), secret: randomId(20) };
     await env.DB.prepare("INSERT INTO participants (id, session_code, name, secret, ord) VALUES (?, ?, ?, ?, ?)")
@@ -286,8 +303,8 @@ async function joinSession(request, env, code) {
   let speech = await env.DB.prepare("SELECT id, status, result_token FROM speeches WHERE participant_id = ?").bind(p.id).first();
   if (speaking && !speech) {
     speech = { id: randomId(10), status: "waiting", result_token: randomId(16) };
-    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(speech.id, session.code, name, speech.result_token, film, p.id).run();
+    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id, topic) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(speech.id, session.code, name, speech.result_token, film, p.id, topic).run();
   } else if (!speaking && speech && speech.status === "waiting") {
     await env.DB.prepare("DELETE FROM speeches WHERE id = ?").bind(speech.id).run();
     speech = null;
@@ -352,6 +369,22 @@ async function volunteer(request, env, code) {
   }
   await env.DB.prepare("UPDATE sessions SET camera_mode = 'single', camera_person = ? WHERE code = ?").bind(me.id, session.code).run();
   return json({ camera_person: true });
+}
+
+/* A speaker can start their own speech from their phone (if nothing else is on stage). */
+async function speakerStart(request, env, id) {
+  const sp = await env.DB.prepare("SELECT * FROM speeches WHERE id = ?").bind(id).first();
+  if (!sp) throw new HttpError(404, "Speech not found");
+  const me = await participantFromRequest(request, env, sp.session_code);
+  if (!me || sp.participant_id !== me.id) throw new HttpError(403, "This isn't your speech");
+  const session = await mustGetSession(env, sp.session_code);
+  if (session.current_speech_id && session.current_speech_id !== sp.id) {
+    const cur = await env.DB.prepare("SELECT status FROM speeches WHERE id = ?").bind(session.current_speech_id).first();
+    if (cur && cur.status === "open") throw new HttpError(409, "Someone else is speaking right now");
+  }
+  await setSpeechStatus(env, sp.id, "open");
+  const timer = await startClock(env, sp.session_code, Number(session.timer_duration) || 120);
+  return json({ ok: true, timer });
 }
 
 /* Who may upload a speech's video: the camera page (camera/host password), or the participant assigned to film it. */

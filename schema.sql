@@ -71,3 +71,4 @@ ALTER TABLE speeches ADD COLUMN participant_id TEXT;
 ALTER TABLE speeches ADD COLUMN filmer TEXT;
 ALTER TABLE sessions ADD COLUMN camera_mode TEXT NOT NULL DEFAULT 'rotation';
 ALTER TABLE sessions ADD COLUMN camera_person TEXT;
+ALTER TABLE speeches ADD COLUMN topic TEXT;
