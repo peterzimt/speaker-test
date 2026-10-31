@@ -41,6 +41,13 @@
   .flash.over { background: #FF4A3D; color: #fff; animation: blinkR .7s steps(2, start) infinite; }
   @keyframes blinkA { 50% { background: #FFF3C4; } }
   @keyframes blinkR { 50% { background: #FFFFFF; color: #FF4A3D; } }
+  .flash.prep { background: #6E5AE6; color: #fff; }
+  .flash.prep .big { animation: pop 1s ease-out infinite; }
+  @keyframes pop { 0% { transform: scale(1.25); opacity: .4 } 30% { transform: scale(1); opacity: 1 } }
+  .bigtimer.prep .t { color: #B9A8FF; }
+  .remind { text-align: left; margin-top: 14px; }
+  .remind .topic { font: italic 600 20px/1.3 "Playfair Display", Georgia, serif; }
+  .remind ol { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
   .flash .big { font: 700 34vw/1 "Space Mono", monospace; letter-spacing: -.04em; }
   .flash .msg { font: 700 22px/1.2 Inter, sans-serif; margin-top: 8px; }
   .flash .hint { font-size: 14px; opacity: .75; margin-top: 18px; }
@@ -93,6 +100,7 @@
     <form id="regForm" class="stack">
       <input id="nameIn" type="text" maxlength="40" autocomplete="given-name" placeholder="First name" required>
       <label class="opt"><input type="checkbox" id="speakIn" checked><span>I'm giving a speech tonight<small>You'll be added to the speakers list.</small></span></label>
+      <div id="topicOpt" class="stack" style="gap:4px"><input id="topicIn" type="text" maxlength="120" placeholder="What's your speech about? (optional)"><span class="small soft">We'll remind you of it on your phone just before you go on.</span></div>
       <label class="opt" id="filmOpt"><input type="checkbox" id="filmIn" checked><span>🎥 Film my speech for video feedback<small>Watching yourself is the fastest way to improve: you see the habits the room noticed — pace, “um”s, hands — next to their scores. The video is unlisted on YouTube and only you get the link.</small></span></label>
       <button class="btn block" type="submit">Join →</button>
       <div id="regErr" class="notice err hidden"></div>
@@ -133,7 +141,8 @@
   <section id="speaking" class="card done hidden">
     <div class="big">🌟</div>
     <h2>You're on, <em id="spName"></em>!</h2>
-    <p class="soft">Breathe, find a friendly face, and enjoy it. Everyone's phone will flash 15 seconds before your time is up.</p>
+    <p class="soft">Breathe, find a friendly face, and enjoy it. Everyone's phone — yours too — flashes 15 seconds before your time is up.</p>
+    <div class="remind stack" id="spRemind"></div>
   </section>
 
   <!-- 3c. voting -->
@@ -218,13 +227,15 @@
 
   /* ---------- join & register ---------- */
   $("#joinForm").addEventListener("submit", (e) => { e.preventDefault(); code = $("#codeIn").value.trim().toUpperCase(); history.replaceState(null, "", "?c=" + code); begin(); });
-  $("#speakIn").addEventListener("change", () => $("#filmOpt").classList.toggle("hidden", !$("#speakIn").checked));
+  const syncSpeakOpts = () => ["#filmOpt", "#topicOpt"].forEach(x => $(x).classList.toggle("hidden", !$("#speakIn").checked));
+  $("#speakIn").addEventListener("change", syncSpeakOpts);
   function openRegister() {
     registering = true;
     const p = part();
     $("#nameIn").value = p?.name || store.get("aristotles.myname") || "";
     if (p) { $("#speakIn").checked = p.speaking !== false; $("#filmIn").checked = p.film !== false; }
-    $("#filmOpt").classList.toggle("hidden", !$("#speakIn").checked);
+    $("#topicIn").value = me?.speech?.topic || p?.topic || "";
+    syncSpeakOpts();
     show("register"); setTimeout(() => $("#nameIn").focus(), 50);
   }
   $("#editMe").addEventListener("click", (e) => { e.preventDefault(); openRegister(); });
@@ -232,9 +243,9 @@
     e.preventDefault();
     const btn = e.submitter; btn.disabled = true;
     try {
-      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked };
+      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked, topic: $("#topicIn").value.trim() };
       const r = await papi(`/sessions/${code}/join`, { method: "POST", body });
-      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film });
+      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film, topic: body.topic });
       store.set("aristotles.myname", body.name);
       err($("#regErr"), ""); registering = false; keepAwake(); poll();
     } catch (ex) { err($("#regErr"), ex.message); } finally { btn.disabled = false; }
@@ -293,7 +304,7 @@
       renderMyCard(); renderDuty(speech); renderVolunteer(session);
       if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
       if (!speech) { current = null; editing = false; return show("waiting"); }
-      if (me.speech && me.speech.id === speech.id) { current = speech; $("#spName").textContent = me.name; return show("speaking"); }
+      if (me.speech && me.speech.id === speech.id) { current = speech; $("#spName").textContent = me.name; $("#spRemind").innerHTML = reminderHtml(session); return show("speaking"); }
       if (!current || current.id !== speech.id) { current = speech; editing = false; resetForm(); }
       $("#speakerName").textContent = speech.speaker;
       const sent = (store.get("aristotles.sent") || []).includes(speech.id);
@@ -306,15 +317,35 @@
   }
 
   function renderMyCard() {
-    const c = $("#myCard"), s = me.speech;
+    const card = $("#myCard"), s = me.speech, c = { set innerHTML(h) { if (card.dataset.k !== h) { card.innerHTML = h; card.dataset.k = h; } }, classList: card.classList };
     if (s && s.status === "closed") {
       c.innerHTML = `<strong>🎉 Your speech is done</strong><p class="small soft" style="margin:0">Rate yourself, then see how the room saw you — and keep it in your speaker passport.</p><div><a class="btn small" href="speech.html?id=${encodeURIComponent(s.id)}&k=${encodeURIComponent(s.result_token)}">See my feedback card →</a></div>`;
       c.classList.remove("hidden");
     } else if (s && s.status === "waiting") {
-      c.innerHTML = `<span class="small soft">You're on the speakers list${s.film ? " · 🎥 your speech will be filmed" : ""}.</span>`;
+      const free = !lastLive?.speech;
+      c.innerHTML = `<div class="row" style="justify-content:space-between"><strong>🎤 Your speech</strong><span class="small soft">${fmtDur(lastLive?.session?.duration)}${s.film ? " · 🎥 filmed" : ""}</span></div>`
+        + reminderHtml(lastLive?.session)
+        + (free ? `<div><button class="btn block" type="button" id="startMine">▶ Start my speech</button><p class="small soft" style="margin:6px 0 0">You get 5 seconds to get ready, then the clock starts on everyone's phone.</p></div>`
+                : `<p class="small soft" style="margin:0">Someone else is speaking. You'll be able to start when they finish.</p>`);
       c.classList.remove("hidden");
     } else c.classList.add("hidden");
   }
+  function fmtDur(sec) { sec = Number(sec) || 120; return sec < 60 ? sec + " s" : (sec % 60 ? (sec / 60).toFixed(1) : sec / 60) + " min"; }
+  function reminderHtml(session) {
+    const t = techBySlug[session?.technique], topic = me?.speech?.topic;
+    let h = topic ? `<div><span class="small soft">Your topic</span><div class="topic">“${esc(topic)}”</div></div>` : `<div class="small soft">No topic saved — <a href="#" data-edit-me>add one</a>.</div>`;
+    h += `<div class="small"><span class="soft">Time:</span> <strong>${fmtDur(session?.duration)}</strong> · phones flash at 15 s left</div>`;
+    if (t) h += `<div><span class="small soft">Tonight's technique</span><div><strong>${esc(t.title)}</strong> — <span class="small">${esc(t.oneLiner || "")}</span></div>${(t.steps || []).length ? `<ol>${t.steps.slice(0, 4).map(x => `<li>${esc(typeof x === "string" ? x : (x.title || x.text || ""))}</li>`).join("")}</ol>` : ""}</div>`;
+    return `<div class="remind stack" style="gap:10px;margin-top:4px">${h}</div>`;
+  }
+  $("#liveTop").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-edit-me]")) { e.preventDefault(); return openRegister(); }
+    const b = e.target.closest("#startMine"); if (!b) return;
+    b.disabled = true; b.textContent = "Starting…";
+    try { const r = await papi(`/speeches/${me.speech.id}/start`, { method: "POST" }); applyTimer(r.timer); keepAwake(); poll(); }
+    catch (ex) { alert(ex.message); b.disabled = false; b.textContent = "▶ Start my speech"; }
+  });
+  $("#speaking").addEventListener("click", (e) => { if (e.target.closest("[data-edit-me]")) { e.preventDefault(); openRegister(); } });
   function renderVolunteer(session) {
     const mine = me.camera_person;
     $("#volTxt").textContent = mine ? "You're the camera person tonight: your phone films every speaker. Thank you!"
@@ -414,6 +445,16 @@
     const bt = $("#bigTimer"), fl = $("#flash");
     if (!tEnd) { bt.classList.add("hidden"); fl.classList.add("hidden"); if (!blinking) setTorch(false); lastPhase = null; return; }
     const ms = tEnd - Date.now(), left = Math.ceil(ms / 1000);
+    if (ms > tTotal * 1000) {                         // 5-second get-ready before the clock starts
+      const n = Math.ceil((ms - tTotal * 1000) / 1000), mine = me?.speech && lastLive?.speech?.id === me.speech.id;
+      bt.classList.remove("hidden"); bt.className = "card bigtimer prep";
+      $("#btTime").textContent = n; $("#btLabel").textContent = mine ? "Get ready — you start in" : "Starting in"; $("#btBar").style.width = "0%";
+      if (mine && dismissedFor !== tEnd) { fl.classList.remove("hidden"); fl.className = "flash prep"; $("#flashN").textContent = n; $("#flashMsg").textContent = "Get ready…"; }
+      else fl.classList.add("hidden");
+      if (lastPhase !== "prep") { navigator.vibrate?.(80); lastPhase = "prep"; }
+      if (!blinking) setTorch(false);
+      return;
+    }
     const phase = left > 15 ? "run" : left > 0 ? "warn" : "over";        // "over" lasts until the host stops the timer
     const a = Math.abs(left);
     bt.classList.remove("hidden"); bt.className = "card bigtimer" + (phase === "run" ? "" : " " + phase);
@@ -421,6 +462,7 @@
     $("#btLabel").textContent = phase === "over" ? "Time's up" : phase === "warn" ? "Wrap it up" : "Speech timer";
     $("#btBar").style.width = Math.min(100, Math.max(0, (1 - left / (tTotal || 1)) * 100)) + "%";
     if (phase !== lastPhase) {
+      if (phase === "run" && lastPhase === "prep") navigator.vibrate?.(300);   // GO
       if (phase === "warn") { navigator.vibrate?.([200, 100, 200]); if (lastPhase === "run") blinkTwice(); }
       if (phase === "over") navigator.vibrate?.([600, 200, 600]);
       lastPhase = phase;
