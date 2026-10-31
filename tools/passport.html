@@ -171,9 +171,16 @@
   if (!chars) { $("#profIn").closest("div").classList.add("hidden"); $("#editProf").closest("div").classList.add("hidden"); }
 
   let id = param("id"), k = param("k");
+  // Coming from the test result: ?p=<profile>&n=<first name>
+  const fromTest = !id && chars && chars.byId[param("p")] ? param("p") : null;
   if (!id || !k) { const mine = passport.get(); if (mine) { id = mine.id; k = mine.secret; } }
   if (param("p")) $("#profIn").value = param("p");
+  if (param("n")) $("#nameIn").value = param("n").slice(0, 60);
   if (!id || !k) { $("#create").classList.remove("hidden"); return; }
+  if (fromTest) {
+    // Already has a passport on this phone: save the new test result into it.
+    try { await api(`/passports/${encodeURIComponent(id)}`, { method: "PATCH", body: { k, profile: fromTest } }); } catch {}
+  }
   await load();
 
   async function load() {

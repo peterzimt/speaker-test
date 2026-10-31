@@ -169,6 +169,12 @@
   .phonegroup select{flex:0 0 auto;max-width:48%;padding:13px 12px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;cursor:pointer;}
   .phonegroup input{flex:1;min-width:0;padding:13px 16px;border-radius:10px;border:1px solid #D9CFBF;background:#fff;color:var(--on-paper);font-family:inherit;font-size:15px;}
   .phonegroup select:focus-visible,.phonegroup input:focus-visible{outline:2px solid var(--gold);outline-offset:1px;}
+  .nextsteps .nextbtns{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px;}
+  .nextsteps a.btn{text-decoration:none;display:inline-block;}
+  .nextsteps .btn.ghost{color:var(--on-paper);border-color:rgba(34,26,43,.25);}
+  .nextsteps .btn.ghost:hover{background:rgba(34,26,43,.06);}
+  .nextsteps .nextmeet{font-size:14px;color:var(--on-paper-soft,#5B5066);margin:10px 0 0;}
+  .nextsteps .nextmeet a{color:inherit;text-decoration:underline;}
   .topshare{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:2px 0 26px;}
   .homework ul{margin:8px 0 0;padding-left:20px;}
   .homework li{margin:7px 0;color:var(--on-paper-soft);line-height:1.5;}
@@ -309,6 +315,17 @@
         <p id="sDrive"></p>
         <h3>Work on this too</h3>
         <div class="cue" id="sCue"></div>
+      </div>
+
+      <div class="card nextsteps" id="nextCard">
+        <p class="kicker">Take it further</p>
+        <h3>Keep your profile, then train it</h3>
+        <p>Save your profile in a free speaker passport: it collects your feedback from each meetup speech and shows how you compare with other speakers who share your profile.</p>
+        <div class="nextbtns">
+          <a class="btn" id="goPassport" href="/tools/passport.html">Start my speaker passport →</a>
+          <a class="btn ghost" id="goCard" href="/tools/profile-card.html">Make my profile card</a>
+        </div>
+        <p class="nextmeet">Want to practise with real people? <a href="/meetup.html">Join the weekly meetup in Madrid</a>.</p>
       </div>
 
       <div class="science">
@@ -992,6 +1009,7 @@ function finish(){
   }));
 
   window._result={primary:primary.name,secondary:secondary.name,dim,pid:primary.id};
+
 }
 
 $("start").onclick=()=>{ const lv=$("lang").value; LANG=(lv==='fr'||lv==='es')?lv:'en'; shuffle(Q); answers.fill(null); idx=0; show("quiz"); renderQ(); };
@@ -1070,6 +1088,17 @@ document.addEventListener("keydown",e=>{
   if($("quiz").classList.contains("hidden"))return;
   if(e.key>="1"&&e.key<="5"){ answers[idx]=+e.key; next(); }
   else if(e.key==="ArrowLeft"){ back(); }
+});
+
+/* ---------- links to the meetup tools, carrying the profile (and first name) ---------- */
+["goPassport","goCard"].forEach(function(id){
+  var a=document.getElementById(id); if(!a) return;
+  var base=a.getAttribute("href");
+  a.addEventListener("click",function(){
+    var r=window._result||{}; if(!r.pid) return;
+    var nm=((document.getElementById("leadName")||{}).value||"").trim().split(/\s+/)[0]||"";
+    a.href=base+"?p="+encodeURIComponent(r.pid)+(nm?"&n="+encodeURIComponent(nm):"");
+  });
 });
 </script>
 </body>
