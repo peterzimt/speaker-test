@@ -347,7 +347,7 @@
         const d = await api("/admin/passports/" + p.id, { host: true });
         const items = d.speeches.slice().reverse().map((s, i, arr) => {
           const bars = CRITERIA.map(c => `<i title="${c.label} ${f1(s.scores[c.key])}" style="height:${Math.max(3, (s.scores[c.key] || 0) * 5)}px;background:${c.hex}"></i>`).join("");
-          return `<a href="speech.html?id=${s.id}&k=${s.token}" target="_blank" rel="noopener"><span>#${arr.length - i} · ${fmtDate(s.date)}</span><span class="muted">${esc(s.session)}${techBySlug[s.technique] ? " · " + esc(techBySlug[s.technique].title) : ""} · ${s.votes} feedback · avg ${f1(avg5(s.scores))}</span><span class="dots">${bars}</span></a>`;
+          return `<a href="speech.html?id=${s.id}&k=${s.token}" target="_blank" rel="noopener"><span>#${arr.length - i} · ${fmtDate(s.date)}</span><span class="muted">${esc(s.session)}${techBySlug[s.technique] ? " · " + esc(techBySlug[s.technique].title) : ""} · ${s.votes} feedback · avg ${f1(avg5(s.scores))}${s.fillers != null ? ` · ${s.fillers} ums` : ""}</span><span class="dots">${bars}</span></a>`;
         }).join("");
         row.insertAdjacentHTML("beforeend", `<div class="hist">${items || `<p class="muted">No speeches yet.</p>`}</div>`);
         b.textContent = "Hide";

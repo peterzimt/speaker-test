@@ -37,6 +37,10 @@
   .tprog { height: 6px; border-radius: 99px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 12px; }
   .tprog span { display: block; height: 100%; background: var(--c-delivery); transition: width .25s linear; }
   .tbox.warn .tprog span { background: var(--gold); } .tbox.over .tprog span { background: var(--warn); }
+  .nextup { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--card-line); font-size: 20px; display: flex; gap: 10px; justify-content: center; align-items: baseline; }
+  .nextup strong { font: 600 24px/1.1 Fraunces, serif; }
+  .fillers { display: flex; align-items: baseline; gap: 10px; }
+  .fillers b { font: 600 34px/1 Fraunces, serif; color: var(--on-dark); }
   .durs { display: flex; gap: 6px; flex-wrap: wrap; }
   .durs button { appearance: none; border: 1px solid var(--card-line); background: rgba(0,0,0,.2); color: var(--on-dark); font: 600 14px/1 Inter; padding: 10px 12px; border-radius: 999px; cursor: pointer; }
   .durs button[aria-pressed="true"] { background: var(--gold); color: var(--ink); border-color: var(--gold); }
@@ -112,6 +116,7 @@
           <div class="name" id="nowName">No one on stage yet</div>
           <div class="count" id="nowCount">–</div>
           <div class="soft small">feedback received</div>
+          <div class="nextup hidden" id="nextUp"><span class="kicker" style="margin:0">Next up</span> <strong id="nextName"></strong></div>
         </div>
       </div>
 
@@ -148,6 +153,7 @@
       <div id="rRadar"></div>
       <div class="stack">
         <div class="soft" id="rCount"></div>
+        <div class="fillers hidden" id="rFillers"><b id="rFillerN"></b><span class="soft">filler words (“um”, “so”, “like”…)</span></div>
         <div class="row" style="gap: 16px; align-items: flex-start">
           <div class="mini-qr" id="rQr"></div>
           <div class="small soft" style="flex: 1; min-width: 160px">
@@ -245,6 +251,8 @@
       $("#sTitle").textContent = session.title;
       $("#sTech").textContent = t ? "Technique of the week · " + t.title : "Session " + session.code;
       renderNow(speeches.find(s => s.status === "open"));
+      const nx = speeches.find(s => s.status === "waiting");
+      $("#nextUp").classList.toggle("hidden", !nx); if (nx) $("#nextName").textContent = nx.speaker;
       renderQueue(speeches);
     } catch (ex) {
       if (ex.status === 404) { store.del("aristotles.hostSession"); clearInterval(timer); loadSetup(); return; }
@@ -307,6 +315,7 @@
       $("#rKicker").textContent = "Feedback" + (r.speech.technique && techBySlug[r.speech.technique] ? " · " + techBySlug[r.speech.technique].title : "");
       $("#rRadar").innerHTML = radarSvg(r.scores, { size: 420 });
       $("#rCount").textContent = `${r.votes} ${r.votes == 1 ? "person" : "people"} gave feedback`;
+      $("#rFillers").classList.toggle("hidden", !r.fillers); if (r.fillers) $("#rFillerN").textContent = r.fillers.count;
       $("#rQr").innerHTML = qrSvg(siteUrl(`speech.html?id=${id}&k=${k}`));
       const c = r.worked.map(t => `<div class="comment">✓ ${esc(t)}</div>`).join("") + r.next_rep.map(t => `<div class="comment next">→ ${esc(t)}</div>`).join("");
       $("#rComments").innerHTML = c || `<p class="soft small">No written comments.</p>`;

@@ -38,6 +38,7 @@
     <div class="card"><div class="scores" id="scores"></div></div>
 
     <div class="card" id="strength"></div>
+    <div class="card hidden" id="fillerCard"><div class="kicker">Filler words</div><p style="margin:0"><span style="font:600 34px/1 Fraunces,serif" id="fillerN"></span> <span class="soft" id="fillerTxt"></span></p></div>
 
     <div class="card stack" id="commentsCard">
       <h3>What the room said</h3>
@@ -104,6 +105,11 @@
       ${low.key !== top.key ? `<p class="soft small" style="margin:0">Most room to grow: <strong style="color:${low.hex}">${low.label}</strong>. ${t ? `Revisit <a href="technique/${t.slug}.html">${esc(t.title)}</a> for a drill.` : ""}</p>` : ""}`;
   } else $("#strength").classList.add("hidden");
 
+  if (r.fillers) {
+    $("#fillerN").textContent = r.fillers.count;
+    $("#fillerTxt").textContent = `“um”, “so”, “like”… counted by ${r.fillers.counters} ${r.fillers.counters == 1 ? "person" : "people"}. ` + (r.fillers.count <= 2 ? "Clean delivery!" : "Next time, try a 2-second pause instead.");
+    $("#fillerCard").classList.remove("hidden");
+  }
   const comments = r.worked.map(x => `<div class="comment">✓ ${esc(x)}</div>`).join("") + r.next_rep.map(x => `<div class="comment next">→ ${esc(x)}</div>`).join("");
   if (comments) $("#comments").innerHTML = comments; else $("#commentsCard").classList.add("hidden");
   $("#card").classList.remove("hidden");

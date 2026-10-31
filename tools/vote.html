@@ -35,6 +35,16 @@
   .tpill.over { background: rgba(224,122,107,.2); color: #F2A79B; }
   .lightopt { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--on-dark-soft); text-align: left; }
   .lightopt input { margin-top: 3px; }
+  .nextline { margin-top: 6px; font-size: 16px; }
+  .nextline strong { font: 600 22px/1.2 Fraunces, serif; color: var(--on-dark); }
+  .umbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .counter { position: fixed; inset: 0; z-index: 90; background: var(--ink); display: flex; flex-direction: column; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .counter .top { display: flex; justify-content: space-between; align-items: center; }
+  .counter .tap { flex: 1; margin: 16px 0; border: 0; border-radius: 28px; background: var(--gold); color: var(--ink); font: 700 26px/1.2 Inter, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .counter .tap:active { background: var(--gold-bright); transform: scale(.99); }
+  .counter .tap .n { font: 700 120px/1 "Space Mono", monospace; }
+  .counter .row2 { display: flex; gap: 10px; }
+  .counter .row2 .btn { flex: 1; }
   .codein { font: 700 28px/1 "Space Mono", monospace !important; letter-spacing: .3em; text-align: center; text-transform: uppercase; }
 </style>
 </head>
@@ -61,11 +71,12 @@
     <div class="big">🎤</div>
     <h2>Waiting for the <em>next speaker</em></h2>
     <p class="soft">Keep this page open. It will switch on by itself as soon as voting opens.</p>
+    <p class="nextline hidden" id="nextLine"><span class="soft">Next up:</span> <strong id="nextName"></strong></p>
     <p id="techLink" class="small hidden"></p>
     <div class="card stack" style="margin-top: 18px; text-align: left">
       <strong>💡 Be the speaker's time light</strong>
       <p class="small soft" style="margin: 0">15 seconds before time runs out, this screen will flash amber, then red. Hold your phone up so the speaker can see it.</p>
-      <label class="lightopt hidden" id="torchOpt"><input type="checkbox" id="torchChk"> <span>Also flash my phone's torch (needs camera permission, Android only)</span></label>
+      <label class="lightopt hidden" id="torchOpt"><input type="checkbox" id="torchChk"> <span>Also flash my phone's torch twice at 15 s (needs camera permission, Android only)</span></label>
       <p class="small soft hidden" id="torchMsg" style="margin: 0"></p>
     </div>
   </section>
@@ -74,6 +85,10 @@
   <form id="vote" class="hidden" novalidate>
     <div class="kicker">Now speaking</div>
     <div class="speaker" id="speakerName"></div>
+    <div class="card umbar" style="margin: 10px 0 14px; padding: 12px 14px">
+      <span class="small soft">Counting “um”s for this speaker?</span>
+      <button class="btn ghost small" type="button" id="umOpen">🔢 Filler counter</button>
+    </div>
     <p class="soft small">Rate what you saw, from 1 to 5. Be honest and kind — it's anonymous, and it's how we all get better.</p>
     <div class="card" id="crits"></div>
     <div class="card stack" style="margin-top: 14px">
@@ -98,6 +113,12 @@
 
   <div id="err" class="notice err hidden" style="margin-top: 14px"></div>
 </main>
+<div class="counter hidden" id="counter" role="dialog" aria-label="Filler word counter">
+  <div class="top"><div><div class="kicker" style="margin:0">Filler counter</div><strong id="umWho"></strong></div><button class="btn ghost small" type="button" id="umClose">Done</button></div>
+  <button class="tap" type="button" id="umTap"><span class="n" id="umN">0</span><span>Tap for every “um”, “uh”, “so”, “like”</span></button>
+  <div class="row2"><button class="btn ghost" type="button" id="umMinus">−1 undo</button></div>
+  <p class="small soft" style="text-align:center;margin:10px 0 0" id="umSync">Saved automatically</p>
+</div>
 <div class="flash hidden" id="flash"><div class="big" id="flashN">15</div><div class="msg" id="flashMsg">Wrap it up</div><div class="hint">Hold your phone up · tap to hide</div></div>
 
 <script src="assets/config.js"></script>
@@ -146,8 +167,10 @@
 
   async function poll() {
     try {
-      const { session, speech, timer } = await api(`/sessions/${code}/live`);
+      const { session, speech, timer, next } = await api(`/sessions/${code}/live`);
       applyTimer(timer);
+      $("#nextLine").classList.toggle("hidden", !next); if (next) $("#nextName").textContent = next;
+      if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
       err($("#err"), "");
       $("#sessChip").textContent = session.title;
       const t = techBySlug[session.technique];
@@ -179,6 +202,31 @@
   });
   $("#editBtn").addEventListener("click", () => { editing = true; show("vote"); });
 
+  /* ---------- filler counter ---------- */
+  const counterId = () => { let v = store.get("aristotles.counter"); if (!v) { v = AT.randomId(16); store.set("aristotles.counter", v); } return v; };
+  let umSpeech = null, umCount = 0, umTimer = null;
+  function openCounter() {
+    if (!current) return;
+    umSpeech = current.id; umCount = Number(store.get("aristotles.um." + umSpeech) || 0);
+    $("#umWho").textContent = current.speaker; $("#umN").textContent = umCount;
+    $("#counter").classList.remove("hidden");
+  }
+  function closeCounter() { $("#counter").classList.add("hidden"); flushUm(); }
+  function bump(d) {
+    umCount = Math.max(0, umCount + d); $("#umN").textContent = umCount;
+    store.set("aristotles.um." + umSpeech, umCount); navigator.vibrate?.(15);
+    $("#umSync").textContent = "Saving…"; clearTimeout(umTimer); umTimer = setTimeout(flushUm, 700);
+  }
+  async function flushUm() {
+    clearTimeout(umTimer); if (!umSpeech) return;
+    try { await api(`/speeches/${umSpeech}/fillers`, { method: "POST", body: { counter: counterId(), count: umCount } }); $("#umSync").textContent = "Saved ✓"; }
+    catch (ex) { $("#umSync").textContent = ex.status === 409 ? "Counting closed for this speaker" : "Not saved yet — will retry"; if (ex.status !== 409) umTimer = setTimeout(flushUm, 3000); }
+  }
+  $("#umOpen").addEventListener("click", openCounter);
+  $("#umClose").addEventListener("click", closeCounter);
+  $("#umTap").addEventListener("click", () => bump(1));
+  $("#umMinus").addEventListener("click", () => bump(-1));
+
   /* ---------- time light ---------- */
   let tEnd = null, dismissedFor = null, lastPhase = null, torchTrack = null, torchOn = false, wakeLock = null;
   function applyTimer(t) { tEnd = t && t.remaining_ms > -60000 ? Date.now() + t.remaining_ms : null; }
@@ -195,7 +243,7 @@
     pill.textContent = (left < 0 ? "+" : "") + Math.floor(a / 60) + ":" + String(a % 60).padStart(2, "0");
     pill.className = "tpill" + (phase === "warn" ? " warn" : phase === "over" || phase === "done" ? " over" : "");
     if (phase !== lastPhase) {
-      if (phase === "warn") navigator.vibrate?.([200, 100, 200]);
+      if (phase === "warn") { navigator.vibrate?.([200, 100, 200]); if (lastPhase === "run") blinkTwice(); }
       if (phase === "over") navigator.vibrate?.([600]);
       lastPhase = phase;
     }
@@ -206,9 +254,15 @@
       $("#flashN").textContent = phase === "warn" ? left : "TIME";
       $("#flashMsg").textContent = phase === "warn" ? "seconds left — wrap it up" : "Time's up!";
     } else fl.classList.add("hidden");
-    // torch: blink during the last 15 s, steady when time is up, then off
-    if (phase === "warn") setTorch(Math.floor(Date.now() / 500) % 2 === 0);
-    else setTorch(phase === "over");
+  }
+  // torch: two short flashes at the 15-second mark, nothing else
+  let blinking = false;
+  async function blinkTwice() {
+    if (!torchTrack || blinking) return;
+    blinking = true;
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i < 2; i++) { await setTorch(true); await wait(350); await setTorch(false); await wait(300); }
+    blinking = false;
   }
   setInterval(lightTick, 200);
   $("#flash").addEventListener("click", () => { dismissedFor = tEnd; $("#flash").classList.add("hidden"); });
@@ -230,7 +284,7 @@
       if (!track.getCapabilities?.().torch) { track.stop(); throw new Error("no torch"); }
       torchTrack = track;
       await track.applyConstraints({ advanced: [{ torch: true }] }); setTimeout(() => track.applyConstraints({ advanced: [{ torch: false }] }), 400);
-      msg.textContent = "✓ Torch ready — it blinked once to show it works."; msg.classList.remove("hidden");
+      msg.textContent = "✓ Torch ready: it will flash twice 15 seconds before the end."; msg.classList.remove("hidden");
     } catch {
       e.target.checked = false;
       msg.textContent = "This phone doesn't let web pages use the torch. The screen flash will still work."; msg.classList.remove("hidden");
