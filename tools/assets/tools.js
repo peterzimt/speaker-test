@@ -125,5 +125,13 @@
     link(p) { return siteUrl(`passport.html?id=${encodeURIComponent(p.id)}&k=${encodeURIComponent(p.secret)}`); },
   };
 
-  window.AT = { API, CRITERIA, store, voterId, randomId, api, $, $$, esc, param, fmtDate, siteUrl, qrSvg, radarSvg, loadCharacters, passport };
+  // self-rating questions, from the speaker's point of view
+  const SELF_HINTS = {
+    ethos: "Credibility — did you feel like they trusted what you said?",
+    pathos: "Connection — did you feel the room was with you?",
+    logos: "Reasoning — do you think they could repeat your main point?",
+    structure: "Shape — did you have a clear opening, spine and close?",
+    delivery: "Voice, pace, eyes, body — how did you feel you came across?",
+  };
+  window.AT = { SELF_HINTS, API, CRITERIA, store, voterId, randomId, api, $, $$, esc, param, fmtDate, siteUrl, qrSvg, radarSvg, loadCharacters, passport };
 })();

@@ -110,17 +110,13 @@
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
 <script src="assets/tools.js"></script>
+<script src="assets/i18n-dict.js"></script>
+<script src="assets/i18n.js"></script>
+<script>AT.langSwitch(document.querySelector(".topbar .row, .topbar .nav"));</script>
 <script>
 (async () => {
   const { $, esc, api, param, CRITERIA, radarSvg, fmtDate, passport } = AT;
-  // self-rating questions, from the speaker's point of view
-  const SELF_HINTS = {
-    ethos: "Credibility — did you feel like they trusted what you said?",
-    pathos: "Connection — did you feel the room was with you?",
-    logos: "Reasoning — do you think they could repeat your main point?",
-    structure: "Shape — did you have a clear opening, spine and close?",
-    delivery: "Voice, pace, eyes, body — how did you feel you came across?",
-  };
+  const SELF_HINTS = AT.SELF_HINTS;
   const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
   const id = param("id"), k = param("k");
   const fail = (m) => { $("#err").textContent = m; $("#err").classList.remove("hidden"); };

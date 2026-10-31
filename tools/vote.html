@@ -42,6 +42,16 @@
   @keyframes blinkA { 50% { background: #FFF3C4; } }
   @keyframes blinkR { 50% { background: #FFFFFF; color: #FF4A3D; } }
   .flash.prep { background: #6E5AE6; color: #fff; }
+  .flash.prep.impro .msg { font: italic 600 26px/1.25 "Playfair Display", Georgia, serif; max-width: 90vw; }
+  .flash.prep.impro .big { font-size: 22vw; }
+  .qchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .qchips button { font: 500 13px/1 Inter, sans-serif; padding: 8px 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: var(--on-dark); cursor: pointer; }
+  .qchips button[aria-pressed="true"] { background: rgba(233,184,92,.18); border-color: var(--gold); }
+  .vs { display: grid; grid-template-columns: 1fr 52px 52px; gap: 6px 10px; align-items: center; font-size: 14px; }
+  .vs .h { font: 700 10px/1 "Space Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--on-dark-soft); }
+  .vs .n { font: 700 16px/1 "Space Mono", monospace; text-align: right; }
+  .said { padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); font-size: 14.5px; }
+  .said.next { border-left: 3px solid var(--gold); }
   .flash.prep .big { animation: pop 1s ease-out infinite; }
   @keyframes pop { 0% { transform: scale(1.25); opacity: .4 } 30% { transform: scale(1); opacity: 1 } }
   .bigtimer.prep .t { color: #B9A8FF; }
@@ -100,7 +110,11 @@
     <form id="regForm" class="stack">
       <input id="nameIn" type="text" maxlength="40" autocomplete="given-name" placeholder="First name" required>
       <label class="opt"><input type="checkbox" id="speakIn" checked><span>I'm giving a speech tonight<small>You'll be added to the speakers list.</small></span></label>
-      <div id="topicOpt" class="stack" style="gap:4px"><input id="topicIn" type="text" maxlength="120" placeholder="What's your speech about? (optional)"><span class="small soft">We'll remind you of it on your phone just before you go on.</span></div>
+      <div id="topicOpt" class="stack" style="gap:8px">
+        <label class="opt"><input type="radio" name="tmode" id="tOwn" value="own" checked><span>I'll bring my own topic</span></label>
+        <input id="topicIn" type="text" maxlength="120" placeholder="What's your speech about? (optional)" style="margin-left:28px;width:calc(100% - 28px)">
+        <label class="opt"><input type="radio" name="tmode" id="tImpro" value="impro"><span>🎲 Surprise me — impromptu<small>When your speech starts you get a random topic and 30 seconds to think.</small></span></label>
+      </div>
       <label class="opt" id="filmOpt"><input type="checkbox" id="filmIn" checked><span>🎥 Film my speech for video feedback<small>Watching yourself is the fastest way to improve: you see the habits the room noticed — pace, “um”s, hands — next to their scores. The video is unlisted on YouTube and only you get the link.</small></span></label>
       <button class="btn block" type="submit">Join →</button>
       <div id="regErr" class="notice err hidden"></div>
@@ -145,10 +159,26 @@
     <div class="remind stack" id="spRemind"></div>
   </section>
 
+  <!-- 3b'. self-review, right after my speech -->
+  <section id="selfrate" class="hidden">
+    <div class="card stack">
+      <div class="kicker" style="margin:0">🎉 Your speech is done</div>
+      <h2 style="margin:0">How did it feel, <em id="srName"></em>?</h2>
+      <p class="small soft" style="margin:0" id="srIntro">Rate yourself before you see the room's scores — the gap between the two is where you learn the most.</p>
+    </div>
+    <div id="srForm">
+      <div class="card" id="srCrits" style="margin-top:14px"></div>
+      <div class="sticky"><button class="btn block" id="srSend" type="button" disabled>Save & see what the room said</button><div id="srErr" class="notice err hidden" style="margin-top:10px"></div></div>
+    </div>
+    <div id="srRoom" class="hidden"></div>
+    <p style="text-align:center;margin-top:16px"><button class="btn ghost small" id="srBack" type="button">← Back to tonight's session</button></p>
+  </section>
+
   <!-- 3c. voting -->
   <form id="vote" class="hidden" novalidate>
     <div class="kicker">Now speaking</div>
     <div class="speaker" id="speakerName"></div>
+    <div class="small hidden" id="speakerTopic" style="font-style:italic;margin-top:4px"></div>
     <div class="card umbar" style="margin: 10px 0 14px; padding: 12px 14px">
       <span class="small soft">Counting “um”s for this speaker?</span>
       <button class="btn ghost small" type="button" id="umOpen">🔢 Filler counter</button>
@@ -157,9 +187,11 @@
     <div class="card" id="crits"></div>
     <div class="card stack" style="margin-top: 14px">
       <div><label for="worked">✓ One thing that really worked <span class="soft">(optional)</span></label>
-        <textarea id="worked" maxlength="280" placeholder="Your opening question made me lean in."></textarea></div>
+        <textarea id="worked" maxlength="280" placeholder="Your opening question made me lean in."></textarea>
+        <div class="qchips" data-to="worked"></div></div>
       <div><label for="next">→ Their next rep: one thing to try next time <span class="soft">(optional)</span></label>
-        <textarea id="next" maxlength="280" placeholder="Pause after your key line and let it land."></textarea></div>
+        <textarea id="next" maxlength="280" placeholder="Pause after your key line and let it land."></textarea>
+        <div class="qchips" data-to="next"></div></div>
     </div>
     <div class="sticky">
       <button class="btn block" id="sendBtn" type="submit" disabled>Send feedback</button>
@@ -176,6 +208,7 @@
   </section>
 
   <div id="err" class="notice err hidden" style="margin-top: 14px"></div>
+  <div id="langSlot" style="text-align:center;margin:22px 0 8px"></div>
 </main>
 
 <!-- camera view (filming duty) -->
@@ -194,11 +227,14 @@
   <div><button class="btn ghost block" type="button" id="umMinus">−1 undo</button></div>
   <p class="small soft" style="text-align:center;margin:10px 0 0" id="umSync">Saved automatically</p>
 </div>
-<div class="flash hidden" id="flash"><div class="big" id="flashN">15</div><div class="msg" id="flashMsg">Wrap it up</div><div class="hint">Hold your phone up · tap to hide</div></div>
+<div class="flash hidden" id="flash"><div class="big" id="flashN">15</div><div class="msg" id="flashMsg">Wrap it up</div><div class="hint" id="flashHint">Hold your phone up · tap to hide</div></div>
 
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
 <script src="assets/tools.js"></script>
+<script src="assets/i18n-dict.js"></script>
+<script src="assets/i18n.js"></script>
+<script>AT.langSwitch(document.getElementById("langSlot"));</script>
 <script src="assets/recorder.js"></script>
 <script>
 (() => {
@@ -207,8 +243,8 @@
   let code = (param("c") || "").toUpperCase();
   let current = null, me = null, editing = false, pollTimer = null, lastLive = null, registering = false;
   const scores = {};
-  const SCREENS = ["join", "register", "waiting", "speaking", "vote", "thanks"];
-  function show(id) { SCREENS.forEach(s => $("#" + s).classList.toggle("hidden", s !== id)); $("#liveTop").classList.toggle("hidden", ["join", "register"].includes(id)); }
+  const SCREENS = ["join", "register", "waiting", "speaking", "selfrate", "vote", "thanks"];
+  function show(id) { SCREENS.forEach(s => $("#" + s).classList.toggle("hidden", s !== id)); $("#liveTop").classList.toggle("hidden", ["join", "register", "selfrate"].includes(id)); }
   function err(el, msg) { el.textContent = msg || ""; el.classList.toggle("hidden", !msg); }
 
   /* ---------- identity for this session (kept on this phone) ---------- */
@@ -227,14 +263,17 @@
 
   /* ---------- join & register ---------- */
   $("#joinForm").addEventListener("submit", (e) => { e.preventDefault(); code = $("#codeIn").value.trim().toUpperCase(); history.replaceState(null, "", "?c=" + code); begin(); });
-  const syncSpeakOpts = () => ["#filmOpt", "#topicOpt"].forEach(x => $(x).classList.toggle("hidden", !$("#speakIn").checked));
+  const syncSpeakOpts = () => { ["#filmOpt", "#topicOpt"].forEach(x => $(x).classList.toggle("hidden", !$("#speakIn").checked)); $("#topicIn").classList.toggle("hidden", $("#tImpro").checked); };
   $("#speakIn").addEventListener("change", syncSpeakOpts);
+  $("#tOwn").addEventListener("change", syncSpeakOpts); $("#tImpro").addEventListener("change", syncSpeakOpts);
   function openRegister() {
     registering = true;
     const p = part();
     $("#nameIn").value = p?.name || store.get("aristotles.myname") || "";
     if (p) { $("#speakIn").checked = p.speaking !== false; $("#filmIn").checked = p.film !== false; }
-    $("#topicIn").value = me?.speech?.topic || p?.topic || "";
+    const impro = me?.speech ? !!me.speech.impromptu : !!p?.impromptu;
+    $("#tImpro").checked = impro; $("#tOwn").checked = !impro;
+    $("#topicIn").value = impro ? "" : me?.speech?.topic || p?.topic || "";
     syncSpeakOpts();
     show("register"); setTimeout(() => $("#nameIn").focus(), 50);
   }
@@ -243,9 +282,9 @@
     e.preventDefault();
     const btn = e.submitter; btn.disabled = true;
     try {
-      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked, topic: $("#topicIn").value.trim() };
+      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked, impromptu: $("#tImpro").checked, topic: $("#tImpro").checked ? "" : $("#topicIn").value.trim() };
       const r = await papi(`/sessions/${code}/join`, { method: "POST", body });
-      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film, topic: body.topic });
+      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film, topic: body.topic, impromptu: body.impromptu });
       store.set("aristotles.myname", body.name);
       err($("#regErr"), ""); registering = false; keepAwake(); poll();
     } catch (ex) { err($("#regErr"), ex.message); } finally { btn.disabled = false; }
@@ -261,6 +300,21 @@
       </div>
       <div class="scale-ends"><span>Not yet</span><span>Nailed it</span></div>
     </div>`).join("");
+  /* quick one-liners: tap to add, tap again to remove */
+  const QUICK = {
+    worked: ["Strong opening", "Great eye contact", "Clear structure", "Good pauses", "Real emotion", "Memorable ending", "Confident voice", "Made me laugh", "Great story"],
+    next: ["Slow down a little", "Fewer “um”s", "Pause after key points", "Stronger ending", "Look at the whole room", "Use your hands more", "One clear main point", "Speak a bit louder", "Stand still more"],
+  };
+  $$(".qchips").forEach(box => { box.innerHTML = QUICK[box.dataset.to].map(t => `<button type="button" aria-pressed="false">${t}</button>`).join(""); });
+  function syncChips() { $$(".qchips").forEach(box => { const v = $("#" + box.dataset.to).value; $$("button", box).forEach(b => b.setAttribute("aria-pressed", String(v.includes(b.textContent)))); }); }
+  $("#vote").addEventListener("click", (e) => {
+    const b = e.target.closest(".qchips button"); if (!b) return;
+    const ta = $("#" + b.parentElement.dataset.to), t = b.textContent;
+    let parts = ta.value.split(/\s*·\s*/).map(x => x.trim()).filter(Boolean);
+    parts = parts.includes(t) ? parts.filter(x => x !== t) : [...parts, t];
+    ta.value = parts.join(" · ").slice(0, 280); syncChips(); navigator.vibrate?.(8);
+  });
+  $("#worked").addEventListener("input", syncChips); $("#next").addEventListener("input", syncChips);
   $("#crits").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-k]"); if (!b) return;
     scores[b.dataset.k] = Number(b.dataset.v);
@@ -271,7 +325,7 @@
   function resetForm() {
     CRITERIA.forEach(c => delete scores[c.key]);
     $$("#crits button").forEach(x => x.setAttribute("aria-pressed", "false"));
-    $("#worked").value = ""; $("#next").value = ""; $("#sendBtn").disabled = true;
+    $("#worked").value = ""; $("#next").value = ""; $("#sendBtn").disabled = true; syncChips();
   }
   $("#vote").addEventListener("submit", async (e) => {
     e.preventDefault(); if (!current) return;
@@ -303,10 +357,18 @@
       if (t) { $("#techLink").innerHTML = `Tonight's technique: <a href="technique/${t.slug}.html">${esc(t.title)} →</a>`; $("#techLink").classList.remove("hidden"); }
       renderMyCard(); renderDuty(speech); renderVolunteer(session);
       if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
+      const ms = me.speech;
+      if (selfMode && !speech) return;                                   // stay on the self-review until they go back
+      if (selfMode && speech) selfMode = false;                          // someone else is on: go vote, the card keeps a button
+      if (!speech && ms && ms.status === "closed" && !ms.self_done && !store.get("aristotles.selfShown." + ms.id)) {
+        store.set("aristotles.selfShown." + ms.id, 1); return openSelf();
+      }
       if (!speech) { current = null; editing = false; return show("waiting"); }
       if (me.speech && me.speech.id === speech.id) { current = speech; $("#spName").textContent = me.name; $("#spRemind").innerHTML = reminderHtml(session); return show("speaking"); }
       if (!current || current.id !== speech.id) { current = speech; editing = false; resetForm(); }
       $("#speakerName").textContent = speech.speaker;
+      $("#speakerTopic").textContent = speech.topic ? (speech.impromptu ? "🎲 " : "") + "“" + speech.topic + "”" : "";
+      $("#speakerTopic").classList.toggle("hidden", !speech.topic);
       const sent = (store.get("aristotles.sent") || []).includes(speech.id);
       if (sent && !editing) { $("#thanksName").textContent = speech.speaker; show("thanks"); }
       else if ($("#vote").classList.contains("hidden")) show("vote");
@@ -319,13 +381,15 @@
   function renderMyCard() {
     const card = $("#myCard"), s = me.speech, c = { set innerHTML(h) { if (card.dataset.k !== h) { card.innerHTML = h; card.dataset.k = h; } }, classList: card.classList };
     if (s && s.status === "closed") {
-      c.innerHTML = `<strong>🎉 Your speech is done</strong><p class="small soft" style="margin:0">Rate yourself, then see how the room saw you — and keep it in your speaker passport.</p><div><a class="btn small" href="speech.html?id=${encodeURIComponent(s.id)}&k=${encodeURIComponent(s.result_token)}">See my feedback card →</a></div>`;
+      c.innerHTML = s.self_done
+        ? `<strong>🎉 Your speech is done</strong><div class="row"><button class="btn small" type="button" data-self>💬 What the room said</button><a class="btn ghost small" href="speech.html?id=${encodeURIComponent(s.id)}&k=${encodeURIComponent(s.result_token)}">Full feedback card →</a></div>`
+        : `<strong>🎉 Your speech is done</strong><p class="small soft" style="margin:0">Rate yourself, then see what the room said.</p><div><button class="btn small" type="button" data-self>⭐ Rate yourself now</button></div>`;
       c.classList.remove("hidden");
     } else if (s && s.status === "waiting") {
       const free = !lastLive?.speech;
       c.innerHTML = `<div class="row" style="justify-content:space-between"><strong>🎤 Your speech</strong><span class="small soft">${fmtDur(lastLive?.session?.duration)}${s.film ? " · 🎥 filmed" : ""}</span></div>`
         + reminderHtml(lastLive?.session)
-        + (free ? `<div><button class="btn block" type="button" id="startMine">▶ Start my speech</button><p class="small soft" style="margin:6px 0 0">You get 5 seconds to get ready, then the clock starts on everyone's phone.</p></div>`
+        + (free ? `<div><button class="btn block" type="button" id="startMine">${s.impromptu ? "🎲 Reveal my topic & start" : "▶ Start my speech"}</button><p class="small soft" style="margin:6px 0 0">${s.impromptu ? "You get 30 seconds to think" : "You get 5 seconds to get ready"}, then the clock starts on everyone's phone.</p></div>`
                 : `<p class="small soft" style="margin:0">Someone else is speaking. You'll be able to start when they finish.</p>`);
       c.classList.remove("hidden");
     } else c.classList.add("hidden");
@@ -333,19 +397,70 @@
   function fmtDur(sec) { sec = Number(sec) || 120; return sec < 60 ? sec + " s" : (sec % 60 ? (sec / 60).toFixed(1) : sec / 60) + " min"; }
   function reminderHtml(session) {
     const t = techBySlug[session?.technique], topic = me?.speech?.topic;
-    let h = topic ? `<div><span class="small soft">Your topic</span><div class="topic">“${esc(topic)}”</div></div>` : `<div class="small soft">No topic saved — <a href="#" data-edit-me>add one</a>.</div>`;
+    const live = lastLive?.speech, onStage = live && me?.speech && live.id === me.speech.id;
+    let h = topic ? `<div><span class="small soft">${me.speech.impromptu ? "🎲 Your surprise topic" : "Your topic"}</span><div class="topic">“${esc(topic)}”</div>${onStage && live.shape ? `<div class="small soft">Try: ${esc(live.shape)}</div>` : ""}</div>`
+      : me?.speech?.impromptu ? `<div class="small">🎲 <strong>Impromptu</strong> — your surprise topic appears when you start, with 30 seconds to think.</div>`
+      : `<div class="small soft">No topic saved — <a href="#" data-edit-me>add one</a>.</div>`;
     h += `<div class="small"><span class="soft">Time:</span> <strong>${fmtDur(session?.duration)}</strong> · phones flash at 15 s left</div>`;
     if (t) h += `<div><span class="small soft">Tonight's technique</span><div><strong>${esc(t.title)}</strong> — <span class="small">${esc(t.oneLiner || "")}</span></div>${(t.steps || []).length ? `<ol>${t.steps.slice(0, 4).map(x => `<li>${esc(typeof x === "string" ? x : (x.title || x.text || ""))}</li>`).join("")}</ol>` : ""}</div>`;
     return `<div class="remind stack" style="gap:10px;margin-top:4px">${h}</div>`;
   }
   $("#liveTop").addEventListener("click", async (e) => {
     if (e.target.closest("[data-edit-me]")) { e.preventDefault(); return openRegister(); }
+    if (e.target.closest("[data-self]")) return openSelf();
     const b = e.target.closest("#startMine"); if (!b) return;
     b.disabled = true; b.textContent = "Starting…";
     try { const r = await papi(`/speeches/${me.speech.id}/start`, { method: "POST" }); applyTimer(r.timer); keepAwake(); poll(); }
-    catch (ex) { alert(ex.message); b.disabled = false; b.textContent = "▶ Start my speech"; }
+    catch (ex) { alert(ex.message); b.disabled = false; b.textContent = me.speech.impromptu ? "🎲 Reveal my topic & start" : "▶ Start my speech"; }
   });
   $("#speaking").addEventListener("click", (e) => { if (e.target.closest("[data-edit-me]")) { e.preventDefault(); openRegister(); } });
+  /* ---------- self-review right after my speech ---------- */
+  let selfMode = false; const mine = {};
+  $("#srCrits").innerHTML = CRITERIA.map(c => `
+    <div class="crit-row" style="--cc:${c.hex}"><span class="crit-name" style="color:${c.hex}">${c.label}</span>
+      <div class="crit-hint">${AT.SELF_HINTS[c.key]}</div>
+      <div class="scale" role="radiogroup" aria-label="${c.label}">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-k="${c.key}" data-v="${n}" aria-pressed="false">${n}</button>`).join("")}</div>
+      <div class="scale-ends"><span>Not yet</span><span>Nailed it</span></div></div>`).join("");
+  $("#srCrits").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-k]"); if (!b) return;
+    mine[b.dataset.k] = Number(b.dataset.v);
+    $$(`#srCrits button[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    navigator.vibrate?.(8); $("#srSend").disabled = CRITERIA.some(c => !mine[c.key]);
+  });
+  function openSelf() {
+    const s = me?.speech; if (!s) return;
+    selfMode = true; $("#srName").textContent = me.name;
+    $("#srForm").classList.toggle("hidden", !!s.self_done); $("#srRoom").classList.toggle("hidden", !s.self_done);
+    $("#srIntro").classList.toggle("hidden", !!s.self_done);
+    show("selfrate"); window.scrollTo(0, 0);
+    if (s.self_done) loadRoom();
+  }
+  $("#srSend").addEventListener("click", async () => {
+    const s = me.speech, b = $("#srSend"); b.disabled = true; b.textContent = "Saving…";
+    try {
+      await AT.api(`/speeches/${s.id}/self`, { method: "POST", body: { k: s.result_token, ...mine } });
+      s.self_done = true; err($("#srErr"), ""); openSelf();
+    } catch (ex) { err($("#srErr"), ex.message); b.disabled = false; }
+    finally { b.textContent = "Save & see what the room said"; }
+  });
+  $("#srBack").addEventListener("click", () => { selfMode = false; poll(); });
+  async function loadRoom() {
+    const s = me.speech, box = $("#srRoom");
+    box.innerHTML = `<div class="card soft small" style="margin-top:14px">Loading what the room said…</div>`;
+    try {
+      const r = await AT.api(`/speeches/${s.id}/results?k=${encodeURIComponent(s.result_token)}`);
+      const card = `speech.html?id=${encodeURIComponent(s.id)}&k=${encodeURIComponent(s.result_token)}`;
+      if (!r.votes) { box.innerHTML = `<div class="card stack" style="margin-top:14px"><strong>No feedback yet</strong><p class="small soft" style="margin:0">People may still be sending it. Your card fills in as it arrives.</p><div><a class="btn small" href="${card}">Open my feedback card →</a></div></div>`; return; }
+      const rows = CRITERIA.map(c => `<span style="color:${c.hex};font-weight:600">${c.label}</span><span class="n">${r.self?.[c.key] ?? "–"}</span><span class="n">${r.scores[c.key] ?? "–"}</span>`).join("");
+      const said = r.worked.map(t => `<div class="said">✓ ${esc(t)}</div>`).join("") + r.next_rep.map(t => `<div class="said next">→ ${esc(t)}</div>`).join("");
+      box.innerHTML = `<div class="card stack" style="margin-top:14px"><strong>You vs the room <span class="small soft">· ${r.votes} ${r.votes == 1 ? "person" : "people"}</span></strong>
+          <div class="vs"><span></span><span class="h" style="text-align:right">You</span><span class="h" style="text-align:right">Room</span>${rows}</div>
+          ${r.fillers ? `<div class="small">🔢 About <strong>${r.fillers.count}</strong> “um”s counted</div>` : ""}</div>
+        <div class="card stack" style="margin-top:14px"><strong>💬 What they wrote</strong>${said || `<p class="small soft" style="margin:0">No written comments this time.</p>`}</div>
+        <div style="margin-top:14px"><a class="btn block" href="${card}">Full feedback card & passport →</a></div>`;
+    } catch (ex) { box.innerHTML = `<div class="notice err" style="margin-top:14px">${esc(ex.message)}</div>`; }
+  }
+
   function renderVolunteer(session) {
     const mine = me.camera_person;
     $("#volTxt").textContent = mine ? "You're the camera person tonight: your phone films every speaker. Thank you!"
@@ -448,8 +563,13 @@
     if (ms > tTotal * 1000) {                         // 5-second get-ready before the clock starts
       const n = Math.ceil((ms - tTotal * 1000) / 1000), mine = me?.speech && lastLive?.speech?.id === me.speech.id;
       bt.classList.remove("hidden"); bt.className = "card bigtimer prep";
-      $("#btTime").textContent = n; $("#btLabel").textContent = mine ? "Get ready — you start in" : "Starting in"; $("#btBar").style.width = "0%";
-      if (mine && dismissedFor !== tEnd) { fl.classList.remove("hidden"); fl.className = "flash prep"; $("#flashN").textContent = n; $("#flashMsg").textContent = "Get ready…"; }
+      $("#btTime").textContent = n; $("#btLabel").textContent = lastLive?.speech?.impromptu ? (mine ? "Thinking time" : "Impromptu — thinking time") : mine ? "Get ready — you start in" : "Starting in"; $("#btBar").style.width = "0%";
+      const sp = lastLive?.speech, impro = !!(sp && sp.impromptu && sp.topic);
+      if (mine && dismissedFor !== tEnd) {
+        fl.classList.remove("hidden"); fl.className = "flash prep" + (impro ? " impro" : ""); $("#flashN").textContent = n;
+        $("#flashMsg").textContent = impro ? "“" + sp.topic + "”" : "Get ready…";
+        $("#flashHint").textContent = impro ? (sp.shape ? "Try: " + sp.shape + " · " : "") + "think, then go" : "Breathe · tap to hide";
+      }
       else fl.classList.add("hidden");
       if (lastPhase !== "prep") { navigator.vibrate?.(80); lastPhase = "prep"; }
       if (!blinking) setTorch(false);
@@ -472,6 +592,7 @@
       fl.classList.remove("hidden"); fl.className = "flash " + phase;
       $("#flashN").textContent = phase === "warn" ? left : "TIME";
       $("#flashMsg").textContent = phase === "warn" ? "seconds left — wrap it up" : "Time's up!";
+      $("#flashHint").textContent = "Hold your phone up · tap to hide";
     } else fl.classList.add("hidden");
     if (phase === "over" && !blinking) setTorch(Math.floor(Date.now() / 400) % 2 === 0);   // keep flashing until stopped
     else if (phase === "run" && !blinking) setTorch(false);

@@ -23,6 +23,15 @@
   .filmsel { width: auto; max-width: 170px; padding: 6px 8px; font-size: 13px; border-radius: 999px; }
   .overlay { position: fixed; inset: 0; background: rgba(21,15,31,.94); backdrop-filter: blur(6px); z-index: 50; overflow: auto; padding: 24px 16px; }
   .overlay .inner { max-width: 1000px; margin: 0 auto; }
+  .now .topic { font: italic 600 20px/1.3 "Playfair Display", Georgia, serif; color: var(--gold-bright, #F3CF7A); margin-top: 6px; }
+  .now .shape { font-size: 13px; color: var(--on-dark-soft); margin-top: 4px; }
+  .aw-list { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 20px; }
+  .aw { border: 1px solid rgba(255,255,255,.14); border-radius: 18px; padding: 22px; text-align: center; transition: transform .4s, opacity .4s; }
+  .aw.hid { opacity: .18; transform: scale(.96); }
+  .aw.hid .aw-w, .aw.hid .aw-d { visibility: hidden; }
+  .aw .ic { font-size: 44px; } .aw .aw-t { font: 700 12px/1.2 "Space Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--on-dark-soft); margin-top: 8px; }
+  .aw .aw-w { font: 600 34px/1.15 "Playfair Display", Georgia, serif; margin-top: 8px; } .aw .aw-d { font-size: 14px; color: var(--on-dark-soft); margin-top: 6px; }
+  .aw.first { grid-column: 1 / -1; border-color: rgba(233,184,92,.6); } .aw.first .aw-w { font-size: 52px; color: var(--gold-bright, #F3CF7A); }
   .res-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: center; }
   .comment { background: rgba(255,255,255,.04); border-left: 3px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 15px; }
   .comment.next { border-left-color: var(--c-delivery); }
@@ -94,6 +103,7 @@
         <h2 id="sTitle" style="margin: 0"></h2>
       </div>
       <div class="row">
+        <button class="btn ghost small" id="awardsBtn" type="button">🏆 Awards</button>
         <button class="btn ghost small" id="camBtn" type="button">🎥 Camera</button>
         <button class="btn ghost small" id="projBtn" type="button">Projector mode</button>
         <button class="btn ghost small" id="leaveBtn" type="button">Change session</button>
@@ -116,6 +126,8 @@
         <div class="card now" id="nowBox">
           <span class="chip" id="nowChip">Waiting</span>
           <div class="name" id="nowName">No one on stage yet</div>
+          <div class="topic hidden" id="nowTopic"></div>
+          <div class="shape hidden" id="nowShape"></div>
           <div class="count" id="nowCount">–</div>
           <div class="soft small">feedback received</div>
           <div class="nextup hidden" id="nextUp"><span class="kicker" style="margin:0">Next up</span> <strong id="nextName"></strong></div>
@@ -130,6 +142,20 @@
             <label class="chk"><input type="checkbox" id="autoTimer" checked> Start it with “Start speech” (5 s get-ready first)</label>
             <div class="row"><button class="btn small" id="tStart" type="button">▶ Start</button><button class="btn ghost small hidden" id="tReset" type="button" title="Restart the clock from the full time">↺ Reset</button><button class="btn ghost small hidden" id="tAdd" type="button" title="Give the speaker 30 more seconds">+30 s</button><button class="btn ghost small hidden" id="tStop" type="button">■ Stop</button></div>
           </div>
+        </div>
+        <div class="card stack" id="improCard">
+          <div class="row" style="justify-content: space-between"><h3 style="margin: 0">🎲 Impromptu topics</h3><span class="small soft">Surprise topic + 30 s to think</span></div>
+          <div class="row">
+            <select id="deck" style="flex: 1; min-width: 200px">
+              <option value="classic">Classic topics (EN · ES · FR)</option>
+              <option value="cah_family">Cards Against Humanity — Family edition</option>
+              <option value="cah_es">Cartas Contra la Humanidad — español (18+)</option>
+              <option value="retros">Retros Against Humanity — work &amp; teams</option>
+              <option value="cah_main">Cards Against Humanity — main game (18+)</option>
+            </select>
+            <button class="btn ghost small" id="allImpro" type="button" title="Turn every speaker who hasn't spoken yet into an impromptu speech">🎲 Everyone impromptu</button>
+          </div>
+          <p class="small soft" style="margin:0">Speakers can also choose “Surprise me” on their phone, or click 🎲 next to a name. Card prompts with a blank: fill it in, then defend your answer.</p>
         </div>
         <div class="card stack" id="filmCard">
           <div class="row" style="justify-content: space-between"><h3 style="margin: 0">🎥 Filming</h3><span class="small soft" id="partCount">No one has joined yet</span></div>
@@ -159,6 +185,14 @@
 </main>
 
 <!-- results overlay -->
+<div id="awards" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Awards">
+  <div class="inner">
+    <div class="row" style="justify-content: space-between"><div><div class="kicker" id="awKicker">Tonight's awards</div><h2 style="margin:0">And the award <em>goes to…</em></h2></div>
+      <div class="row"><button class="btn small" id="awNext" type="button">Reveal next ▶</button><button class="btn ghost small" id="awClose" type="button">Close</button></div></div>
+    <div class="aw-list" id="awList"></div>
+    <p class="small soft" style="text-align:center;margin-top:18px">Click or press space to reveal the next award.</p>
+  </div>
+</div>
 <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
   <div class="inner">
     <div class="row" style="justify-content: space-between; margin-bottom: 8px">
@@ -264,6 +298,8 @@
     try {
       const { session, speeches, timer, participants, camera } = await api("/sessions/" + code, { host: true });
       renderFilming(participants || [], camera || { mode: "rotation" }); window.__parts = participants || [];
+      if (document.activeElement !== $("#deck")) $("#deck").value = session.impro_deck || "classic";
+      window.__waiting = speeches.filter(x => x.status === "waiting" && !x.impromptu).map(x => x.id);
       window.__applyTimer?.(timer);
       err($("#sessErr"), "");
       const t = techBySlug[session.technique];
@@ -283,18 +319,21 @@
     $("#nowChip").className = "chip" + (s ? " live" : "");
     $("#nowChip").textContent = s ? "Speaking" : "Waiting";
     $("#nowName").textContent = s ? s.speaker : "No one on stage yet";
-    $("#nowName").title = s && s.topic ? "Topic: " + s.topic : "";
+    $("#nowTopic").textContent = s && s.topic ? "“" + s.topic + "”" : s && s.impromptu ? "🎲 Surprise topic coming…" : "";
+    $("#nowTopic").classList.toggle("hidden", !(s && (s.topic || s.impromptu)));
+    $("#nowShape").textContent = s && s.shape ? "Try: " + s.shape : ""; $("#nowShape").classList.toggle("hidden", !(s && s.shape));
+    window.__curImpro = !!(s && s.impromptu);
     $("#nowCount").textContent = s ? s.votes : "–";
   }
 
   function renderQueue(list) {
     const parts = window.__parts || [];
-    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic]), parts.length]);
+    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic, s.impromptu]), parts.length]);
     if (key === lastQueueKey) return;
     lastQueueKey = key;
     $("#queue").innerHTML = list.length ? list.map(s => `
       <div class="q-item ${s.status === "open" ? "open" : ""}">
-        <div><span class="who">${esc(s.speaker)}</span>${s.topic ? `<br><span class="small" style="font-style:italic">“${esc(s.topic)}”</span>` : ""}<br>
+        <div><span class="who">${esc(s.speaker)}</span>${s.topic ? `<br><span class="small" style="font-style:italic">${s.impromptu ? "🎲 " : ""}“${esc(s.topic)}”</span>` : s.impromptu ? `<br><span class="small">🎲 Surprise topic</span>` : ""}<br>
           <span class="small soft">${s.status === "open" ? "Speaking · voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}${s.youtube_id ? ` · <a href="https://youtu.be/${s.youtube_id}" target="_blank" rel="noopener">▶ video</a>` : ""}</span></div>
         <div class="q-actions">
           ${s.status === "open"
@@ -306,6 +345,7 @@
             <option value="camera" ${s.filmer === "camera" ? "selected" : ""}>🎥 Camera page</option>
             <option value="none" ${s.filmer === "none" ? "selected" : ""}>Nobody films</option>
           </select>` : ""}
+          ${s.status === "waiting" ? `<button class="btn ghost small" data-act="impro" data-id="${s.id}" data-on="${s.impromptu ? 1 : 0}" title="${s.impromptu ? "Impromptu: a surprise topic and 30 s to think when the speech starts. Click to turn off" : "Make it impromptu: a surprise topic and 30 s to think"}" style="${s.impromptu ? "" : "opacity:.45"}">🎲</button>` : ""}
           <button class="btn ghost small" data-act="film" data-id="${s.id}" data-film="${s.film ? 1 : 0}" title="${s.film ? "Will be filmed. Click to stop filming this speaker" : "Not filmed. Click if the speaker agrees to be filmed"}" style="${s.film ? "" : "opacity:.45"}">🎥${s.film ? "" : " off"}</button>
           ${s.votes ? `<button class="btn ghost small" data-act="results" data-id="${s.id}" data-k="${s.result_token}">Results</button>` : ""}
           <button class="btn danger small" data-act="delete" data-id="${s.id}" title="Remove" aria-label="Remove ${esc(s.speaker)}">✕</button>
@@ -329,6 +369,12 @@
     try { await api(`/sessions/${code}/camera`, { method: "POST", host: true, body: { mode: $("#camMode").value, person: $("#camPerson").value } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
   }
   $("#camMode").addEventListener("change", saveCam);
+  $("#deck").addEventListener("change", async () => { try { await api(`/sessions/${code}/deck`, { method: "POST", host: true, body: { deck: $("#deck").value } }); } catch (ex) { alert(ex.message); } });
+  $("#allImpro").addEventListener("click", async () => {
+    const ids = window.__waiting || []; if (!ids.length) return alert("Everyone waiting is already impromptu (or no one is waiting).");
+    for (const id of ids) { try { await api(`/speeches/${id}/impromptu`, { method: "POST", host: true, body: { impromptu: true } }); } catch {} }
+    lastQueueKey = ""; refresh();
+  });
   $("#camPerson").addEventListener("change", saveCam);
   $("#shuffleBtn").addEventListener("click", async () => { try { await api(`/sessions/${code}/shuffle`, { method: "POST", host: true }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); } });
 
@@ -336,6 +382,10 @@
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const { act, id } = b.dataset;
     if (act === "results") return showResults(id, b.dataset.k);
+    if (act === "impro") {
+      try { await api(`/speeches/${id}/impromptu`, { method: "POST", host: true, body: { impromptu: b.dataset.on !== "1" } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
+      return;
+    }
     if (act === "film") {
       try { await api(`/speeches/${id}/film`, { method: "POST", host: true, body: { film: b.dataset.film !== "1" } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
       return;
@@ -393,6 +443,33 @@
     $("#rFillers").classList.add("hidden"); $("#rQr").parentElement.classList.add("hidden"); $("#toggleComments").classList.add("hidden"); $("#rComments").classList.add("hidden");
     $("#overlay").classList.remove("hidden");
   });
+  /* ---------- awards ---------- */
+  let awShown = 0;
+  function awReveal() {
+    const items = AT.$$("#awList .aw"); if (awShown >= items.length) return;
+    // reveal from the last (smallest) to the first (the room's favourite)
+    items[items.length - 1 - awShown].classList.remove("hid"); awShown++;
+    $("#awNext").textContent = awShown >= items.length ? "All revealed 🎉" : "Reveal next ▶"; $("#awNext").disabled = awShown >= items.length;
+  }
+  $("#awardsBtn").addEventListener("click", async () => {
+    try {
+      const r = await api(`/sessions/${code}/awards`, { host: true });
+      $("#awKicker").textContent = r.session.title + " · tonight's awards";
+      $("#awList").innerHTML = r.awards.length ? r.awards.map((a, i) => `<div class="aw hid ${i === 0 ? "first" : ""}"><div class="ic">${a.icon}</div><div class="aw-t">${esc(a.title)}</div><div class="aw-w">${esc(a.winner)}</div><div class="aw-d">${esc(a.detail)}</div></div>`).join("")
+        : `<p class="soft">No finished speeches with feedback yet. End a few speeches first.</p>`;
+      awShown = 0; $("#awNext").disabled = !r.awards.length; $("#awNext").textContent = "Reveal next ▶";
+      $("#awards").classList.remove("hidden");
+    } catch (ex) { alert(ex.message); }
+  });
+  $("#awNext").addEventListener("click", (e) => { e.stopPropagation(); awReveal(); });
+  $("#awList").addEventListener("click", awReveal);
+  $("#awClose").addEventListener("click", () => $("#awards").classList.add("hidden"));
+  document.addEventListener("keydown", (e) => {
+    if ($("#awards").classList.contains("hidden")) return;
+    if (e.key === " " || e.key === "ArrowRight") { e.preventDefault(); awReveal(); }
+    if (e.key === "Escape") $("#awards").classList.add("hidden");
+  });
+
   $("#projBtn").addEventListener("click", () => {
     document.body.classList.add("projector");
     document.documentElement.requestFullscreen?.().catch(() => {});
@@ -428,7 +505,7 @@
     box.classList.remove("hidden");
     if (left > tTotal) {                              // 5-second get-ready before the clock
       box.classList.remove("warn", "over");
-      $("#tTime").textContent = String(left - tTotal); $("#tLabel").textContent = "Get ready…"; $("#tBar").style.width = "0%";
+      $("#tTime").textContent = String(left - tTotal); $("#tLabel").textContent = window.__curImpro ? "Thinking time…" : "Get ready…"; $("#tBar").style.width = "0%";
       return;
     }
     box.classList.toggle("warn", left <= 15 && left > 0);
