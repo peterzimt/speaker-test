@@ -50,6 +50,20 @@
   .vs { display: grid; grid-template-columns: 1fr 52px 52px; gap: 6px 10px; align-items: center; font-size: 14px; }
   .vs .h { font: 700 10px/1 "Space Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--on-dark-soft); }
   .vs .n { font: 700 16px/1 "Space Mono", monospace; text-align: right; }
+  .vs.vs4 { grid-template-columns: 1fr 52px 52px 52px; } .vs .h { text-align: right; } .vs .n.up { color: #6FD39A; } .vs .n.down { color: var(--warn); }
+  .rolebox { border-color: rgba(233,184,92,.55); }
+  .tri { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.08); font-size: 14.5px; }
+  .tri .b { display: flex; gap: 4px; } .tri button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: var(--on-dark); font-size: 16px; cursor: pointer; }
+  .tri button[aria-pressed="true"][data-v="2"] { background: rgba(111,211,154,.25); border-color: #6FD39A; }
+  .tri button[aria-pressed="true"][data-v="1"] { background: rgba(233,184,92,.22); border-color: var(--gold); }
+  .tri button[aria-pressed="true"][data-v="0"] { background: rgba(224,122,107,.25); border-color: var(--warn); }
+  .cnt { display: flex; align-items: center; gap: 10px; } .cnt b { font: 700 28px/1 "Space Mono", monospace; min-width: 44px; text-align: center; }
+  .again { display: grid; gap: 8px; } .again button { text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.03); color: var(--on-dark); cursor: pointer; font: 600 15px/1.3 Inter, sans-serif; }
+  .again button small { display: block; font-weight: 400; color: var(--on-dark-soft); font-size: 13px; margin-top: 2px; }
+  .rr { padding: 12px 0; border-top: 1px solid rgba(255,255,255,.08); } .rr-h { margin-bottom: 6px; }
+  .rr-item { display: flex; gap: 8px; font-size: 14px; padding: 2px 0; } .rr-mark { width: 18px; font-weight: 700; } .rr-item.ok .rr-mark { color: #6FD39A; } .rr-item.mid .rr-mark { color: var(--gold); } .rr-item.no .rr-mark { color: var(--warn); }
+  .rr-count { font: 700 22px/1 "Space Mono", monospace; margin: 4px 0 6px; } .rr-count span { font: 400 13px Inter, sans-serif; color: var(--on-dark-soft); }
+  .rr-note { font-size: 14px; font-style: italic; color: var(--on-dark-soft); margin-top: 4px; }
   .said { padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); font-size: 14.5px; }
   .said.next { border-left: 3px solid var(--gold); }
   .flash.prep .big { animation: pop 1s ease-out infinite; }
@@ -115,6 +129,8 @@
         <input id="topicIn" type="text" maxlength="120" placeholder="What's your speech about? (optional)" style="margin-left:28px;width:calc(100% - 28px)">
         <label class="opt"><input type="radio" name="tmode" id="tImpro" value="impro"><span>🎲 Surprise me — impromptu<small>When your speech starts you get a random topic and 30 seconds to think.</small></span></label>
       </div>
+      <div id="focusOpt" class="stack" style="gap:4px"><span style="font-size:15px">🎯 What do you want feedback on? <span class="small soft">(up to 2)</span></span>
+        <span class="small soft">Someone in the room will watch exactly that for you.</span><div class="qchips" id="focusChips"></div></div>
       <label class="opt" id="filmOpt"><input type="checkbox" id="filmIn" checked><span>🎥 Film my speech for video feedback<small>Watching yourself is the fastest way to improve: you see the habits the room noticed — pace, “um”s, hands — next to their scores. The video is unlisted on YouTube and only you get the link.</small></span></label>
       <button class="btn block" type="submit">Join →</button>
       <div id="regErr" class="notice err hidden"></div>
@@ -126,6 +142,7 @@
     <div class="card bigtimer hidden" id="bigTimer"><div class="l" id="btLabel">Speech timer</div><div class="t" id="btTime">0:00</div><div class="tprog"><span id="btBar"></span></div></div>
     <div class="card stack duty hidden" id="duty" style="margin-bottom: 14px"></div>
     <div class="card stack hidden" id="myCard" style="margin-bottom: 14px"></div>
+    <div class="card stack rolebox hidden" id="roleCard" style="margin-bottom: 14px"></div>
   </div>
 
   <!-- 3a. waiting -->
@@ -143,6 +160,7 @@
       <label class="opt hidden" id="torchOpt"><input type="checkbox" id="torchChk"><span>Also use my phone's torch<small>Two flashes at 15 s, then flashing when time is up. Android only, asks for camera permission.</small></span></label>
       <p class="small soft hidden" id="torchMsg" style="margin: 0"></p>
     </div>
+    <div class="card stack hidden" style="margin-top: 14px" data-again-slot="waiting"></div>
     <div class="card stack" style="margin-top: 14px" id="volCard">
       <strong>🎥 Filming tonight</strong>
       <p class="small soft" style="margin: 0" id="volTxt">Everyone films the next speaker in turn — your phone will tell you when it's your turn. Or take over all the filming yourself:</p>
@@ -183,8 +201,10 @@
       <span class="small soft">Counting “um”s for this speaker?</span>
       <button class="btn ghost small" type="button" id="umOpen">🔢 Filler counter</button>
     </div>
+    <div class="card stack rolebox hidden" id="roleBox" style="margin-bottom: 14px"></div>
     <p class="soft small">Rate what you saw, from 1 to 5. Be honest and kind — it's anonymous, and it's how we all get better.</p>
     <div class="card" id="crits"></div>
+    <div class="card hidden" id="focusBox" style="margin-top: 14px"></div>
     <div class="card stack" style="margin-top: 14px">
       <div><label for="worked">✓ One thing that really worked <span class="soft">(optional)</span></label>
         <textarea id="worked" maxlength="280" placeholder="Your opening question made me lean in."></textarea>
@@ -193,6 +213,7 @@
         <textarea id="next" maxlength="280" placeholder="Pause after your key line and let it land."></textarea>
         <div class="qchips" data-to="next"></div></div>
     </div>
+    <div class="card stack" style="margin-top: 14px" data-again-slot="vote"></div>
     <div class="sticky">
       <button class="btn block" id="sendBtn" type="submit" disabled>Send feedback</button>
       <div id="voteErr" class="notice err hidden" style="margin-top: 10px"></div>
@@ -205,6 +226,7 @@
     <h2>Thank you</h2>
     <p class="soft">Your feedback for <strong id="thanksName"></strong> has been sent.</p>
     <button class="btn ghost small" id="editBtn" type="button">Change my answers</button>
+    <div class="stack" style="margin-top: 18px; text-align: left" data-again-slot="thanks"></div>
   </section>
 
   <div id="err" class="notice err hidden" style="margin-top: 14px"></div>
@@ -231,6 +253,7 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
+<script src="assets/practice.js"></script>
 <script src="assets/tools.js"></script>
 <script src="assets/i18n-dict.js"></script>
 <script src="assets/i18n.js"></script>
@@ -239,6 +262,7 @@
 <script>
 (() => {
   const { $, $$, esc, store, voterId, CRITERIA, param } = AT;
+  const t = x => (AT.t ? AT.t(x) : x);
   const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
   let code = (param("c") || "").toUpperCase();
   let current = null, me = null, editing = false, pollTimer = null, lastLive = null, registering = false;
@@ -263,7 +287,15 @@
 
   /* ---------- join & register ---------- */
   $("#joinForm").addEventListener("submit", (e) => { e.preventDefault(); code = $("#codeIn").value.trim().toUpperCase(); history.replaceState(null, "", "?c=" + code); begin(); });
-  const syncSpeakOpts = () => { ["#filmOpt", "#topicOpt"].forEach(x => $(x).classList.toggle("hidden", !$("#speakIn").checked)); $("#topicIn").classList.toggle("hidden", $("#tImpro").checked); };
+  $("#focusChips").innerHTML = Object.entries(ROLE_SHORT).map(([k, l]) => `<button type="button" data-f="${k}" aria-pressed="false">${l}</button>`).join("");
+  const focusSel = () => $$("#focusChips button[aria-pressed=true]").map(b => b.dataset.f);
+  $("#focusChips").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-f]"); if (!b) return;
+    const on = b.getAttribute("aria-pressed") !== "true";
+    if (on && focusSel().length >= 2) return;
+    b.setAttribute("aria-pressed", String(on));
+  });
+  const syncSpeakOpts = () => { ["#filmOpt", "#topicOpt", "#focusOpt"].forEach(x => $(x).classList.toggle("hidden", !$("#speakIn").checked)); $("#topicIn").classList.toggle("hidden", $("#tImpro").checked); };
   $("#speakIn").addEventListener("change", syncSpeakOpts);
   $("#tOwn").addEventListener("change", syncSpeakOpts); $("#tImpro").addEventListener("change", syncSpeakOpts);
   function openRegister() {
@@ -274,6 +306,8 @@
     const impro = me?.speech ? !!me.speech.impromptu : !!p?.impromptu;
     $("#tImpro").checked = impro; $("#tOwn").checked = !impro;
     $("#topicIn").value = impro ? "" : me?.speech?.topic || p?.topic || "";
+    const f = (me?.speech?.focus_roles || "").split(",").filter(Boolean).concat(me?.speech ? [] : p?.focus || []);
+    $$("#focusChips button").forEach(b => b.setAttribute("aria-pressed", String(f.includes(b.dataset.f))));
     syncSpeakOpts();
     show("register"); setTimeout(() => $("#nameIn").focus(), 50);
   }
@@ -282,9 +316,9 @@
     e.preventDefault();
     const btn = e.submitter; btn.disabled = true;
     try {
-      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked, impromptu: $("#tImpro").checked, topic: $("#tImpro").checked ? "" : $("#topicIn").value.trim() };
+      const body = { name: $("#nameIn").value.trim(), speaking: $("#speakIn").checked, film: $("#filmIn").checked, impromptu: $("#tImpro").checked, focus: focusSel(), topic: $("#tImpro").checked ? "" : $("#topicIn").value.trim() };
       const r = await papi(`/sessions/${code}/join`, { method: "POST", body });
-      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film, topic: body.topic, impromptu: body.impromptu });
+      store.set(partKey(), { ...r.participant, speaking: body.speaking, film: body.film, topic: body.topic, impromptu: body.impromptu, focus: body.focus });
       store.set("aristotles.myname", body.name);
       err($("#regErr"), ""); registering = false; keepAwake(); poll();
     } catch (ex) { err($("#regErr"), ex.message); } finally { btn.disabled = false; }
@@ -305,8 +339,8 @@
     worked: ["Strong opening", "Great eye contact", "Clear structure", "Good pauses", "Real emotion", "Memorable ending", "Confident voice", "Made me laugh", "Great story"],
     next: ["Slow down a little", "Fewer “um”s", "Pause after key points", "Stronger ending", "Look at the whole room", "Use your hands more", "One clear main point", "Speak a bit louder", "Stand still more"],
   };
-  $$(".qchips").forEach(box => { box.innerHTML = QUICK[box.dataset.to].map(t => `<button type="button" aria-pressed="false">${t}</button>`).join(""); });
-  function syncChips() { $$(".qchips").forEach(box => { const v = $("#" + box.dataset.to).value; $$("button", box).forEach(b => b.setAttribute("aria-pressed", String(v.includes(b.textContent)))); }); }
+  $$(".qchips[data-to]").forEach(box => { box.innerHTML = QUICK[box.dataset.to].map(t => `<button type="button" aria-pressed="false">${t}</button>`).join(""); });
+  function syncChips() { $$(".qchips[data-to]").forEach(box => { const v = $("#" + box.dataset.to).value; $$("button", box).forEach(b => b.setAttribute("aria-pressed", String(v.includes(b.textContent)))); }); }
   $("#vote").addEventListener("click", (e) => {
     const b = e.target.closest(".qchips button"); if (!b) return;
     const ta = $("#" + b.parentElement.dataset.to), t = b.textContent;
@@ -326,12 +360,14 @@
     CRITERIA.forEach(c => delete scores[c.key]);
     $$("#crits button").forEach(x => x.setAttribute("aria-pressed", "false"));
     $("#worked").value = ""; $("#next").value = ""; $("#sendBtn").disabled = true; syncChips();
+    focusScore = 0; $$("#focusBox button").forEach(x => x.setAttribute("aria-pressed", "false"));
+    roleState = { items: [], count: 0, note: "" }; roleFor = null;
   }
   $("#vote").addEventListener("submit", async (e) => {
     e.preventDefault(); if (!current) return;
     const btn = $("#sendBtn"); btn.disabled = true; btn.textContent = "Sending…";
     try {
-      await papi(`/speeches/${current.id}/votes`, { method: "POST", body: { voter: voterId(), ...scores, worked: $("#worked").value, next_rep: $("#next").value } });
+      await papi(`/speeches/${current.id}/votes`, { method: "POST", body: { voter: voterId(), ...scores, focus: focusScore || undefined, role: roleReport(), worked: $("#worked").value, next_rep: $("#next").value } });
       const sent = store.get("aristotles.sent") || []; sent.push(current.id); store.set("aristotles.sent", sent.slice(-50));
       editing = false; err($("#voteErr"), ""); $("#thanksName").textContent = current.speaker; show("thanks");
     } catch (ex) { err($("#voteErr"), ex.status === 409 ? "Voting just closed for this speaker." : ex.message); }
@@ -355,7 +391,7 @@
       $("#nextLine").classList.toggle("hidden", !next); if (next) $("#nextName").textContent = next;
       const t = techBySlug[session.technique];
       if (t) { $("#techLink").innerHTML = `Tonight's technique: <a href="technique/${t.slug}.html">${esc(t.title)} →</a>`; $("#techLink").classList.remove("hidden"); }
-      renderMyCard(); renderDuty(speech); renderVolunteer(session);
+      renderMyCard(); renderDuty(speech); renderVolunteer(session); renderRole(speech); renderFocus(session); renderAgain(live);
       if (!speech && !$("#counter").classList.contains("hidden")) closeCounter();
       const ms = me.speech;
       if (selfMode && !speech) return;                                   // stay on the self-review until they go back
@@ -388,7 +424,7 @@
     } else if (s && s.status === "waiting") {
       const free = !lastLive?.speech;
       c.innerHTML = `<div class="row" style="justify-content:space-between"><strong>🎤 Your speech</strong><span class="small soft">${fmtDur(lastLive?.session?.duration)}${s.film ? " · 🎥 filmed" : ""}</span></div>`
-        + reminderHtml(lastLive?.session)
+        + (free ? reminderHtml(lastLive?.session) : "")
         + (free ? `<div><button class="btn block" type="button" id="startMine">${s.impromptu ? "🎲 Reveal my topic & start" : "▶ Start my speech"}</button><p class="small soft" style="margin:6px 0 0">${s.impromptu ? "You get 30 seconds to think" : "You get 5 seconds to get ready"}, then the clock starts on everyone's phone.</p></div>`
                 : `<p class="small soft" style="margin:0">Someone else is speaking. You'll be able to start when they finish.</p>`);
       c.classList.remove("hidden");
@@ -396,13 +432,16 @@
   }
   function fmtDur(sec) { sec = Number(sec) || 120; return sec < 60 ? sec + " s" : (sec % 60 ? (sec / 60).toFixed(1) : sec / 60) + " min"; }
   function reminderHtml(session) {
-    const t = techBySlug[session?.technique], topic = me?.speech?.topic;
+    const tq = techBySlug[session?.technique], topic = me?.speech?.topic;
     const live = lastLive?.speech, onStage = live && me?.speech && live.id === me.speech.id;
     let h = topic ? `<div><span class="small soft">${me.speech.impromptu ? "🎲 Your surprise topic" : "Your topic"}</span><div class="topic">“${esc(topic)}”</div>${onStage && live.shape ? `<div class="small soft">Try: ${esc(live.shape)}</div>` : ""}</div>`
       : me?.speech?.impromptu ? `<div class="small">🎲 <strong>Impromptu</strong> — your surprise topic appears when you start, with 30 seconds to think.</div>`
       : `<div class="small soft">No topic saved — <a href="#" data-edit-me>add one</a>.</div>`;
     h += `<div class="small"><span class="soft">Time:</span> <strong>${fmtDur(session?.duration)}</strong> · phones flash at 15 s left</div>`;
-    if (t) h += `<div><span class="small soft">Tonight's technique</span><div><strong>${esc(t.title)}</strong> — <span class="small">${esc(t.oneLiner || "")}</span></div>${(t.steps || []).length ? `<ol>${t.steps.slice(0, 4).map(x => `<li>${esc(typeof x === "string" ? x : (x.title || x.text || ""))}</li>`).join("")}</ol>` : ""}</div>`;
+    const P = PRACTICE_PLANS[session?.technique];
+    if (me?.speech?.kind) h = `<div class="small"><strong>${AGAIN_LABEL[me.speech.kind]}</strong></div>` + h;
+    if (tq && P) h += `<div><span class="small soft">🎯 Tonight's theme — your practice plan</span><div><strong>${esc(tq.title)}</strong></div><ol>${P.plan.map(([a, b]) => `<li><strong>${esc(a)}</strong> — <span class="small">${esc(b)}</span></li>`).join("")}</ol></div>`;
+    else if (tq) h += `<div><span class="small soft">Tonight's technique</span><div><strong>${esc(tq.title)}</strong> — <span class="small">${esc(tq.oneLiner || "")}</span></div>${(tq.steps || []).length ? `<ol>${tq.steps.slice(0, 4).map(x => `<li>${esc(typeof x === "string" ? x : (x.title || x.text || ""))}</li>`).join("")}</ol>` : ""}</div>`;
     return `<div class="remind stack" style="gap:10px;margin-top:4px">${h}</div>`;
   }
   $("#liveTop").addEventListener("click", async (e) => {
@@ -456,10 +495,93 @@
       box.innerHTML = `<div class="card stack" style="margin-top:14px"><strong>You vs the room <span class="small soft">· ${r.votes} ${r.votes == 1 ? "person" : "people"}</span></strong>
           <div class="vs"><span></span><span class="h" style="text-align:right">You</span><span class="h" style="text-align:right">Room</span>${rows}</div>
           ${r.fillers ? `<div class="small">🔢 About <strong>${r.fillers.count}</strong> “um”s counted</div>` : ""}</div>
+        ${r.focus ? `<div class="card stack" style="margin-top:14px"><strong>🎯 ${esc(t("Tonight's theme"))}</strong><div class="small">${esc(t(PRACTICE_PLANS[r.speech.technique]?.focus || ""))} <strong>${r.focus.avg} / 5</strong></div></div>` : ""}
+        ${r.previous ? `<div class="card stack" style="margin-top:14px"><strong>${esc(t("You vs the original"))}</strong>${PracticeUI.previous(r.previous, r.scores, CRITERIA, esc)}</div>` : ""}
+        ${r.roles && r.roles.length ? `<div class="card stack" style="margin-top:14px"><strong>🎯 ${esc(t("Role reports"))}</strong>${PracticeUI.roleReports(r.roles, esc)}</div>` : ""}
         <div class="card stack" style="margin-top:14px"><strong>💬 What they wrote</strong>${said || `<p class="small soft" style="margin:0">No written comments this time.</p>`}</div>
         <div style="margin-top:14px"><a class="btn block" href="${card}">Full feedback card & passport →</a></div>`;
     } catch (ex) { box.innerHTML = `<div class="notice err" style="margin-top:14px">${esc(ex.message)}</div>`; }
   }
+
+  /* ---------- audience role (watch one habit for this speaker) ---------- */
+  let roleState = { items: [], count: 0, note: "" }, roleFor = null, focusScore = 0;
+  function roleReport() {
+    const r = me?.role; if (!r || !current || r.speech_id !== current.id) return undefined;
+    const count = r.role === "um" ? Number(store.get("aristotles.um." + current.id) || 0) : roleState.count;
+    return { role: r.role, items: roleState.items, count, note: roleState.note };
+  }
+  function renderRole(speech) {
+    const r = me?.role, card = $("#roleCard"), box = $("#roleBox");
+    const R = r && AUDIENCE_ROLES[r.role];
+    // heads-up before the speech
+    if (R && r.when === "next") {
+      const h = `<div class="kicker" style="margin:0;color:var(--gold-bright)">🎯 Your role for the next speech</div><div><strong>${R.icon} ${esc(t(R.name))}</strong> <span class="small soft">for</span> <strong>${esc(r.speaker)}</strong></div><p class="small soft" style="margin:0">${esc(t(R.brief))}</p>`
+        + (R.items.length ? `<ul class="small" style="margin:0;padding-left:18px">${R.items.map(x => `<li>${esc(t(x))}</li>`).join("")}</ul>` : "");
+      if (card.dataset.k !== h) { card.innerHTML = h; card.dataset.k = h; } card.classList.remove("hidden");
+    } else card.classList.add("hidden");
+    // during the speech, inside the feedback form
+    if (!(R && r.when === "now" && speech && r.speech_id === speech.id)) { box.classList.add("hidden"); return; }
+    if (roleFor === speech.id) return;
+    roleFor = speech.id; roleState = store.get("aristotles.role." + speech.id) || { items: [], count: 0, note: "" };
+    let h = `<div class="kicker" style="margin:0;color:var(--gold-bright)">🎯 Your role tonight</div><div><strong>${R.icon} ${esc(t(R.name))}</strong></div><p class="small soft" style="margin:0">${esc(t(R.brief))} <span style="opacity:.7">(${esc(t("Helps with"))}: ${esc(R.watches)})</span></p>`;
+    if (r.role === "um") h += `<div><button class="btn small" type="button" data-role-um>🔢 ${esc(t("Open the filler counter"))}</button></div>`;
+    if (R.count) h += `<div class="cnt"><button class="btn ghost small" type="button" data-cnt="-1">−</button><b id="roleCnt">${roleState.count || 0}</b><button class="btn small" type="button" data-cnt="1">＋</button><span class="small">${esc(t(R.count))}</span></div>`;
+    h += R.items.map((x, i) => `<div class="tri"><span>${esc(t(x))}</span><span class="b">${[[2, "✓"], [1, "~"], [0, "✗"]].map(([v, l]) => `<button type="button" data-i="${i}" data-v="${v}" aria-pressed="${roleState.items[i] === v}">${l}</button>`).join("")}</span></div>`).join("");
+    h += `<textarea id="roleNote" maxlength="280" placeholder="${esc(t("One thing you noticed (optional)"))}">${esc(roleState.note || "")}</textarea>`;
+    box.innerHTML = h; box.classList.remove("hidden");
+  }
+  const saveRole = () => { if (roleFor) store.set("aristotles.role." + roleFor, roleState); };
+  $("#roleBox").addEventListener("click", (e) => {
+    if (e.target.closest("[data-role-um]")) return openCounter();
+    const c = e.target.closest("[data-cnt]");
+    if (c) { roleState.count = Math.max(0, (roleState.count || 0) + Number(c.dataset.cnt)); $("#roleCnt").textContent = roleState.count; navigator.vibrate?.(12); return saveRole(); }
+    const b = e.target.closest(".tri button"); if (!b) return;
+    const i = Number(b.dataset.i), v = Number(b.dataset.v);
+    roleState.items[i] = roleState.items[i] === v ? null : v;
+    $$(`#roleBox .tri button[data-i="${i}"]`).forEach(x => x.setAttribute("aria-pressed", String(roleState.items[i] === Number(x.dataset.v))));
+    navigator.vibrate?.(8); saveRole();
+  });
+  $("#roleBox").addEventListener("input", (e) => { if (e.target.id === "roleNote") { roleState.note = e.target.value; saveRole(); } });
+
+  /* ---------- tonight's theme: one extra score ---------- */
+  function renderFocus(session) {
+    const P = PRACTICE_PLANS[session.technique], T = techBySlug[session.technique], box = $("#focusBox");
+    if (!P) { box.classList.add("hidden"); return; }
+    const k = session.technique; if (box.dataset.k === k) return; box.dataset.k = k;
+    box.innerHTML = `<div class="crit-row" style="--cc:#E9B85C"><span class="crit-name" style="color:#E9B85C">🎯 ${esc(t("Tonight's theme"))} · ${esc(t(T?.title || k))}</span>
+      <div class="crit-hint">${esc(t(P.focus))}</div>
+      <div class="scale">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-v="${n}" aria-pressed="false">${n}</button>`).join("")}</div>
+      <div class="scale-ends"><span>${esc(t("Not yet"))}</span><span>${esc(t("Nailed it"))}</span></div></div>`;
+    box.classList.remove("hidden");
+  }
+  $("#focusBox").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-v]"); if (!b) return;
+    focusScore = Number(b.dataset.v); $$("#focusBox button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); navigator.vibrate?.(8);
+  });
+
+  /* ---------- same topic, my turn: can do better / other angle / add something ---------- */
+  function againHtml(src) {
+    if (!src || !me) return "";
+    if (me.speech && me.speech.status === "waiting") return "";
+    const topic = src.topic ? `“${esc(t(src.topic))}”` : esc(t("this topic"));
+    return `<strong>🎤 ${esc(t("Your turn on the same topic?"))}</strong><p class="small soft" style="margin:0">${topic} — ${esc(t("after"))} ${esc(src.speaker)}</p>
+      <div class="again">${AGAIN_OPTIONS.map(([k, ic, l, d]) => `<button type="button" data-again="${k}" data-src="${src.id}">${ic} ${esc(t(l))}<small>${esc(t(d))}</small></button>`).join("")}</div>`;
+  }
+  function renderAgain(live) {
+    const cur = live.speech && (!me.speech || me.speech.id !== live.speech.id) ? live.speech : null;
+    const last = live.last && (!me.speech || me.speech.id !== live.last.id) ? live.last : null;
+    const fill = (slot, src) => { const el = $(`[data-again-slot="${slot}"]`), h = againHtml(src); if (el.dataset.k !== h) { el.innerHTML = h; el.dataset.k = h; } el.classList.toggle("hidden", !h); };
+    fill("vote", cur); fill("thanks", cur); fill("waiting", last);
+  }
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-again]"); if (!b) return;
+    b.disabled = true;
+    try {
+      await papi(`/speeches/${b.dataset.src}/again`, { method: "POST", body: { kind: b.dataset.again } });
+      $$("[data-again-slot]").forEach(x => { x.innerHTML = `<div class="notice">✓ ${esc(t("You're on the speakers list!"))}</div>`; x.dataset.k = ""; });
+      setTimeout(poll, 1500);
+    } catch (ex) { alert(t(ex.message)); b.disabled = false; }
+  });
 
   function renderVolunteer(session) {
     const mine = me.camera_person;

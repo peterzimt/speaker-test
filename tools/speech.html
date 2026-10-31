@@ -33,6 +33,13 @@
   .legend i.dash { background: repeating-linear-gradient(90deg, var(--on-dark) 0 4px, transparent 4px 7px); opacity: .6; }
   .video { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; }
   .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .vs { display: grid; grid-template-columns: 1fr 60px 60px 52px; gap: 6px 10px; align-items: center; font-size: 14px; }
+  .vs .h { font: 700 10px/1.2 "Space Mono", monospace; letter-spacing: .1em; text-transform: uppercase; opacity: .7; text-align: right; }
+  .vs .n { font: 700 16px/1 "Space Mono", monospace; text-align: right; } .vs .n.up { color: #3FA36E; } .vs .n.down { color: #D0604F; }
+  .rr { padding: 12px 0; border-top: 1px solid rgba(127,127,127,.2); } .rr-h { margin-bottom: 6px; }
+  .rr-item { display: flex; gap: 8px; font-size: 14px; padding: 2px 0; } .rr-mark { width: 18px; font-weight: 700; } .rr-item.ok .rr-mark { color: #3FA36E; } .rr-item.mid .rr-mark { color: #C9962F; } .rr-item.no .rr-mark { color: #D0604F; }
+  .rr-count { font: 700 22px/1 "Space Mono", monospace; margin: 4px 0 6px; } .rr-count span { font: 400 13px Inter, sans-serif; opacity: .7; }
+  .rr-note { font-size: 14px; font-style: italic; opacity: .75; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -75,6 +82,9 @@
     <div class="card" id="strength"></div>
     <div class="card hidden" id="fillerCard"><div class="kicker">Filler words</div><p style="margin:0"><span style="font:600 34px/1 Fraunces,serif" id="fillerN"></span> <span class="soft" id="fillerTxt"></span></p></div>
 
+    <div class="card stack hidden" id="themeCard"></div>
+    <div class="card stack hidden" id="prevCard"></div>
+    <div class="card stack hidden" id="rolesCard"></div>
     <div class="card stack" id="commentsCard">
       <h3>What the room said</h3>
       <div id="comments"></div>
@@ -109,6 +119,7 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
+<script src="assets/practice.js"></script>
 <script src="assets/tools.js"></script>
 <script src="assets/i18n-dict.js"></script>
 <script src="assets/i18n.js"></script>
@@ -194,6 +205,11 @@
     $("#fillerTxt").textContent = `“um”, “so”, “like”… counted by ${r.fillers.counters} ${r.fillers.counters == 1 ? "person" : "people"}. ` + (r.fillers.count <= 2 ? "Clean delivery!" : "Next time, try a 2-second pause instead.");
     $("#fillerCard").classList.remove("hidden");
   }
+  const tx = x => (AT.t ? AT.t(x) : x);
+  const P = window.PRACTICE_PLANS?.[r.speech.technique];
+  if (r.focus && P) { $("#themeCard").innerHTML = `<div class="kicker" style="margin:0">🎯 ${esc(tx("Tonight's theme"))} · ${esc(tx(techBySlug?.[r.speech.technique]?.title || r.speech.technique))}</div><p style="margin:0"><span style="font:600 34px/1 Fraunces,serif">${r.focus.avg}</span> <span class="soft">/ 5 — ${esc(tx(P.focus))}</span></p>`; $("#themeCard").classList.remove("hidden"); }
+  if (r.previous) { $("#prevCard").innerHTML = `<div class="kicker" style="margin:0">${r.speech.kind ? AGAIN_LABEL[r.speech.kind] : ""}</div><h3 style="margin:0">${esc(tx("You vs the original"))}</h3>${PracticeUI.previous(r.previous, r.scores, CRITERIA, esc)}`; $("#prevCard").classList.remove("hidden"); }
+  if (r.roles && r.roles.length) { $("#rolesCard").innerHTML = `<h3 style="margin:0">🎯 ${esc(tx("Role reports"))}</h3><p class="small soft" style="margin:0">${esc(tx("People in the room each watched one habit for you."))}</p>${PracticeUI.roleReports(r.roles, esc)}`; $("#rolesCard").classList.remove("hidden"); }
   const comments = r.worked.map(x => `<div class="comment">✓ ${esc(x)}</div>`).join("") + r.next_rep.map(x => `<div class="comment next">→ ${esc(x)}</div>`).join("");
   if (comments) $("#comments").innerHTML = comments; else $("#commentsCard").classList.add("hidden");
   $("#card").classList.remove("hidden");

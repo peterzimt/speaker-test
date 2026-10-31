@@ -25,6 +25,14 @@
     const hit = DICT[k];
     if (hit && hit[col]) return hit[col];
     for (const [re, out] of PATTERNS) { const m = k.match(re); if (m) return out[col](...m.slice(1)); }
+    // "🎯 Some text": translate the text after a leading emoji/symbol
+    const em = k.match(/^([^\p{L}\p{N}“"(¿¡]+)\s(.+)$/u);
+    if (em && DICT[em[2]]?.[col]) return em[1] + " " + DICT[em[2]][col];
+    // "A · B · C": translate each part that we know
+    if (k.includes(" · ")) {
+      const parts = k.split(" · "), out = parts.map(x => tr(x) ?? x);
+      if (out.some((x, i) => x !== parts[i])) return out.join(" · ");
+    }
     return null;
   }
   function t(text) { return tr(text) ?? text; }

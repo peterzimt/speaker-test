@@ -101,6 +101,8 @@
       <div>
         <div class="kicker" id="sTech">Session</div>
         <h2 id="sTitle" style="margin: 0"></h2>
+        <label class="small soft" style="display:flex;gap:8px;align-items:center;margin-top:6px">🎯 Theme
+          <select id="themeSel" style="max-width: 280px"><option value="">No theme</option></select></label>
       </div>
       <div class="row">
         <button class="btn ghost small" id="awardsBtn" type="button">🏆 Awards</button>
@@ -128,6 +130,7 @@
           <div class="name" id="nowName">No one on stage yet</div>
           <div class="topic hidden" id="nowTopic"></div>
           <div class="shape hidden" id="nowShape"></div>
+          <div class="shape hidden" id="nowRoles"></div>
           <div class="count" id="nowCount">–</div>
           <div class="soft small">feedback received</div>
           <div class="nextup hidden" id="nextUp"><span class="kicker" style="margin:0">Next up</span> <strong id="nextName"></strong></div>
@@ -223,6 +226,7 @@
 <script src="assets/config.js"></script>
 <script src="assets/qrcode.js"></script>
 <script src="assets/techniques.js"></script>
+<script src="assets/practice.js"></script>
 <script src="assets/tools.js"></script>
 <script>
 (() => {
@@ -298,6 +302,8 @@
     try {
       const { session, speeches, timer, participants, camera } = await api("/sessions/" + code, { host: true });
       renderFilming(participants || [], camera || { mode: "rotation" }); window.__parts = participants || [];
+      if (document.activeElement !== $("#themeSel")) $("#themeSel").value = session.technique || "";
+      window.__speeches = speeches;
       if (document.activeElement !== $("#deck")) $("#deck").value = session.impro_deck || "classic";
       window.__waiting = speeches.filter(x => x.status === "waiting" && !x.impromptu).map(x => x.id);
       window.__applyTimer?.(timer);
@@ -323,17 +329,20 @@
     $("#nowTopic").classList.toggle("hidden", !(s && (s.topic || s.impromptu)));
     $("#nowShape").textContent = s && s.shape ? "Try: " + s.shape : ""; $("#nowShape").classList.toggle("hidden", !(s && s.shape));
     window.__curImpro = !!(s && s.impromptu);
+    const rl = s && (s.roles || []).length ? "🎯 " + s.roles.map(r => `${AUDIENCE_ROLES[r.role]?.icon || ""} ${AUDIENCE_ROLES[r.role]?.name || r.role}: ${r.name}`).join(" · ") : "";
+    $("#nowRoles").textContent = rl; $("#nowRoles").classList.toggle("hidden", !rl);
     $("#nowCount").textContent = s ? s.votes : "–";
   }
 
   function renderQueue(list) {
     const parts = window.__parts || [];
-    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic, s.impromptu]), parts.length]);
+    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic, s.impromptu, s.kind, s.after, JSON.stringify(s.roles || [])]), parts.length]);
     if (key === lastQueueKey) return;
     lastQueueKey = key;
     $("#queue").innerHTML = list.length ? list.map(s => `
       <div class="q-item ${s.status === "open" ? "open" : ""}">
-        <div><span class="who">${esc(s.speaker)}</span>${s.topic ? `<br><span class="small" style="font-style:italic">${s.impromptu ? "🎲 " : ""}“${esc(s.topic)}”</span>` : s.impromptu ? `<br><span class="small">🎲 Surprise topic</span>` : ""}<br>
+        <div><span class="who">${esc(s.speaker)}</span>${s.kind ? ` <span class="small" style="color:var(--gold-bright)">${AGAIN_LABEL[s.kind]}${s.after ? " · after " + esc(s.after) : ""}${s.seconds ? " · " + s.seconds + " s" : ""}</span>` : ""}${s.topic ? `<br><span class="small" style="font-style:italic">${s.impromptu ? "🎲 " : ""}“${esc(s.topic)}”</span>` : s.impromptu ? `<br><span class="small">🎲 Surprise topic</span>` : ""}<br>
+          ${s.status !== "closed" && (s.roles || []).length ? `<span class="small" style="opacity:.8">🎯 ${s.roles.map(r => `${AUDIENCE_ROLES[r.role]?.icon || ""} ${esc(r.name)}`).join(" · ")}</span><br>` : ""}
           <span class="small soft">${s.status === "open" ? "Speaking · voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}${s.youtube_id ? ` · <a href="https://youtu.be/${s.youtube_id}" target="_blank" rel="noopener">▶ video</a>` : ""}</span></div>
         <div class="q-actions">
           ${s.status === "open"
@@ -369,6 +378,8 @@
     try { await api(`/sessions/${code}/camera`, { method: "POST", host: true, body: { mode: $("#camMode").value, person: $("#camPerson").value } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); }
   }
   $("#camMode").addEventListener("change", saveCam);
+  $("#themeSel").insertAdjacentHTML("beforeend", (window.TECHNIQUES || []).map(t => `<option value="${t.slug}">${esc(t.title)}</option>`).join(""));
+  $("#themeSel").addEventListener("change", async () => { try { await api(`/sessions/${code}/technique`, { method: "POST", host: true, body: { technique: $("#themeSel").value } }); lastQueueKey = ""; refresh(); } catch (ex) { alert(ex.message); } });
   $("#deck").addEventListener("change", async () => { try { await api(`/sessions/${code}/deck`, { method: "POST", host: true, body: { deck: $("#deck").value } }); } catch (ex) { alert(ex.message); } });
   $("#allImpro").addEventListener("click", async () => {
     const ids = window.__waiting || []; if (!ids.length) return alert("Everyone waiting is already impromptu (or no one is waiting).");
@@ -395,7 +406,7 @@
     try {
       if (act === "delete") await api("/speeches/" + id, { method: "DELETE", host: true });
       else await api(`/speeches/${id}/${act}`, { method: "POST", host: true });
-      if (act === "open" && $("#autoTimer").checked) await window.__startTimer?.();
+      if (act === "open" && $("#autoTimer").checked) await window.__startTimer?.((window.__speeches || []).find(x => x.id === id)?.seconds);
       if (act === "close") await window.__saveDur?.();   // next speaker (who may start from their phone) gets the chosen length
       lastQueueKey = ""; await refresh();
       if (act === "close") { const s = await api("/sessions/" + code, { host: true }); const sp = s.speeches.find(x => x.id === id); if (sp && sp.votes) showResults(id, sp.result_token); }
@@ -485,12 +496,12 @@
   window.__saveDur = saveDur;
   try { $("#autoTimer").checked = store.get("aristotles.autoTimer", true) !== false; } catch {}
   $("#autoTimer").addEventListener("change", () => store.set("aristotles.autoTimer", $("#autoTimer").checked));
-  async function startTimer() { const r = await api(`/sessions/${code}/timer`, { method: "POST", host: true, body: { action: "start", seconds: dur } }); applyTimer(r.timer); }
+  async function startTimer(sec) { const r = await api(`/sessions/${code}/timer`, { method: "POST", host: true, body: { action: "start", seconds: Number(sec) || dur } }); applyTimer(r.timer); }
   async function timerAct(body) { const r = await api(`/sessions/${code}/timer`, { method: "POST", host: true, body }); applyTimer(r.timer); }
   $("#tReset").addEventListener("click", () => timerAct({ action: "reset" }).catch(ex => alert(ex.message)));
   $("#tAdd").addEventListener("click", () => timerAct({ action: "add", seconds: 30 }).catch(ex => alert(ex.message)));
   async function stopTimer() { const r = await api(`/sessions/${code}/timer`, { method: "POST", host: true, body: { action: "stop" } }); applyTimer(r.timer); saveDur(); }
-  $("#tStart").addEventListener("click", () => startTimer().catch(ex => alert(ex.message)));
+  $("#tStart").addEventListener("click", () => startTimer(0).catch(ex => alert(ex.message)));
   $("#tStop").addEventListener("click", () => stopTimer().catch(ex => alert(ex.message)));
   function applyTimer(t) {
     if (tEnd && !t) saveDur();                        // speech ended: restore the chosen length (a "+30 s" only counts once)
