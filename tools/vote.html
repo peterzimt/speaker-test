@@ -23,13 +23,25 @@
   .done { text-align: center; padding: 36px 20px; }
   .done .big { font-size: 46px; margin-bottom: 6px; }
   .sticky { position: sticky; bottom: 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--ink) 70%, rgba(27,20,38,0)); }
+  .flash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #1B1426; cursor: pointer; }
+  .flash.warn { background: #FFC94D; animation: blink 1s steps(2, start) infinite; }
+  .flash.over { background: #FF4A3D; color: #fff; }
+  @keyframes blink { 50% { background: #FFF3C4; } }
+  .flash .big { font: 700 34vw/1 "Space Mono", monospace; letter-spacing: -.04em; }
+  .flash .msg { font: 700 22px/1.2 Inter, sans-serif; margin-top: 8px; }
+  .flash .hint { font-size: 14px; opacity: .75; margin-top: 18px; }
+  .tpill { font: 700 13px/1 "Space Mono", monospace; padding: 7px 11px; border-radius: 999px; background: rgba(79,182,166,.16); color: #8FE0D2; }
+  .tpill.warn { background: rgba(233,184,92,.2); color: var(--gold-bright); }
+  .tpill.over { background: rgba(224,122,107,.2); color: #F2A79B; }
+  .lightopt { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--on-dark-soft); text-align: left; }
+  .lightopt input { margin-top: 3px; }
   .codein { font: 700 28px/1 "Space Mono", monospace !important; letter-spacing: .3em; text-align: center; text-transform: uppercase; }
 </style>
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="/">aristotl<span>.es</span></a>
-  <span class="chip" id="sessChip">Feedback</span>
+  <div class="row" style="gap: 8px"><span class="tpill hidden" id="tPill"></span><span class="chip" id="sessChip">Feedback</span></div>
 </header>
 
 <main class="wrap">
@@ -50,6 +62,12 @@
     <h2>Waiting for the <em>next speaker</em></h2>
     <p class="soft">Keep this page open. It will switch on by itself as soon as voting opens.</p>
     <p id="techLink" class="small hidden"></p>
+    <div class="card stack" style="margin-top: 18px; text-align: left">
+      <strong>💡 Be the speaker's time light</strong>
+      <p class="small soft" style="margin: 0">15 seconds before time runs out, this screen will flash amber, then red. Hold your phone up so the speaker can see it.</p>
+      <label class="lightopt hidden" id="torchOpt"><input type="checkbox" id="torchChk"> <span>Also flash my phone's torch (needs camera permission, Android only)</span></label>
+      <p class="small soft hidden" id="torchMsg" style="margin: 0"></p>
+    </div>
   </section>
 
   <!-- voting -->
@@ -80,6 +98,7 @@
 
   <div id="err" class="notice err hidden" style="margin-top: 14px"></div>
 </main>
+<div class="flash hidden" id="flash"><div class="big" id="flashN">15</div><div class="msg" id="flashMsg">Wrap it up</div><div class="hint">Hold your phone up · tap to hide</div></div>
 
 <script src="assets/config.js"></script>
 <script src="assets/techniques.js"></script>
@@ -127,7 +146,8 @@
 
   async function poll() {
     try {
-      const { session, speech } = await api(`/sessions/${code}/live`);
+      const { session, speech, timer } = await api(`/sessions/${code}/live`);
+      applyTimer(timer);
       err($("#err"), "");
       $("#sessChip").textContent = session.title;
       const t = techBySlug[session.technique];
@@ -158,6 +178,64 @@
     } finally { btn.textContent = "Send feedback"; btn.disabled = false; }
   });
   $("#editBtn").addEventListener("click", () => { editing = true; show("vote"); });
+
+  /* ---------- time light ---------- */
+  let tEnd = null, dismissedFor = null, lastPhase = null, torchTrack = null, torchOn = false, wakeLock = null;
+  function applyTimer(t) { tEnd = t && t.remaining_ms > -60000 ? Date.now() + t.remaining_ms : null; }
+  async function setTorch(on) {
+    if (!torchTrack || torchOn === on) return;
+    try { await torchTrack.applyConstraints({ advanced: [{ torch: on }] }); torchOn = on; } catch {}
+  }
+  function lightTick() {
+    const pill = $("#tPill"), fl = $("#flash");
+    if (!tEnd) { pill.classList.add("hidden"); fl.classList.add("hidden"); setTorch(false); lastPhase = null; return; }
+    const ms = tEnd - Date.now(), left = Math.ceil(ms / 1000);
+    const phase = left > 15 ? "run" : left > 0 ? "warn" : ms > -6000 ? "over" : "done";
+    const a = Math.abs(left);
+    pill.textContent = (left < 0 ? "+" : "") + Math.floor(a / 60) + ":" + String(a % 60).padStart(2, "0");
+    pill.className = "tpill" + (phase === "warn" ? " warn" : phase === "over" || phase === "done" ? " over" : "");
+    if (phase !== lastPhase) {
+      if (phase === "warn") navigator.vibrate?.([200, 100, 200]);
+      if (phase === "over") navigator.vibrate?.([600]);
+      lastPhase = phase;
+    }
+    const hidden = dismissedFor === tEnd;
+    if ((phase === "warn" || phase === "over") && !hidden) {
+      fl.classList.remove("hidden");
+      fl.className = "flash " + phase;
+      $("#flashN").textContent = phase === "warn" ? left : "TIME";
+      $("#flashMsg").textContent = phase === "warn" ? "seconds left — wrap it up" : "Time's up!";
+    } else fl.classList.add("hidden");
+    // torch: blink during the last 15 s, steady when time is up, then off
+    if (phase === "warn") setTorch(Math.floor(Date.now() / 500) % 2 === 0);
+    else setTorch(phase === "over");
+  }
+  setInterval(lightTick, 200);
+  $("#flash").addEventListener("click", () => { dismissedFor = tEnd; $("#flash").classList.add("hidden"); });
+
+  // keep the screen awake while the session page is open
+  async function keepAwake() { try { if (!wakeLock && navigator.wakeLock && !document.hidden) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch {} }
+  document.addEventListener("click", keepAwake, { once: true });
+  document.addEventListener("visibilitychange", keepAwake);
+
+  // real torch: only where the browser supports it (Chrome on Android)
+  const isiOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!isiOS && navigator.mediaDevices?.getUserMedia && /Android/i.test(navigator.userAgent)) $("#torchOpt").classList.remove("hidden");
+  $("#torchChk").addEventListener("change", async (e) => {
+    const msg = $("#torchMsg");
+    if (!e.target.checked) { await setTorch(false); torchTrack?.stop(); torchTrack = null; msg.classList.add("hidden"); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+      const track = stream.getVideoTracks()[0];
+      if (!track.getCapabilities?.().torch) { track.stop(); throw new Error("no torch"); }
+      torchTrack = track;
+      await track.applyConstraints({ advanced: [{ torch: true }] }); setTimeout(() => track.applyConstraints({ advanced: [{ torch: false }] }), 400);
+      msg.textContent = "✓ Torch ready — it blinked once to show it works."; msg.classList.remove("hidden");
+    } catch {
+      e.target.checked = false;
+      msg.textContent = "This phone doesn't let web pages use the torch. The screen flash will still work."; msg.classList.remove("hidden");
+    }
+  });
 
   function begin() {
     if (!code) return show("join");

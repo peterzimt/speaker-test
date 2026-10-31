@@ -75,7 +75,7 @@
         <label style="margin:0">Think time</label>
         <select id="think"><option value="0">none</option><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select>
         <label style="margin:0 0 0 12px">Speak time</label>
-        <select id="speak"><option value="60">1 min</option><option value="90" selected>1 min 30</option><option value="120">2 min</option><option value="180">3 min</option></select>
+        <select id="speak"><option value="30">30 s</option><option value="60">1 min</option><option value="90" selected>1 min 30</option><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option><option value="600">10 min</option></select>
         <label style="margin:0 0 0 12px">Topics</label>
         <select id="deck"><option value="mixed">Mixed</option><option value="everyday">Everyday</option><option value="work">Work</option><option value="deep">Big questions</option><option value="fun">Playful</option><option value="custom">My topics only</option></select>
       </div>
@@ -88,7 +88,7 @@
 
   <section class="noproj" style="margin-top: 40px; max-width: 760px">
     <h2>How to use it in a session</h2>
-    <p class="soft">Project it, spin, and invite the next volunteer. They get the think time on the clock, then speak until the bar runs out — amber at 30 seconds left, red at time. The structure gives them a spine; the constraint stretches one specific skill. Lock any reel to keep it for the whole round, so everyone practises the same structure on different topics.</p>
+    <p class="soft">Project it, spin, and invite the next volunteer. They get the think time on the clock, then speak until the bar runs out — amber at 15 seconds left, red at time. The structure gives them a spine; the constraint stretches one specific skill. Lock any reel to keep it for the whole round, so everyone practises the same structure on different topics.</p>
     <p class="soft">Want to practise it with real people? <a href="/meetup.html">Join the weekly meetup in Madrid</a>, or <a href="/speaker-profile-quiz.html">find your speaker profile</a> first.</p>
   </section>
 </main>
@@ -169,7 +169,7 @@
   const fmt = s => `${s < 0 ? "+" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.abs(s) % 60).padStart(2, "0")}`;
   function paint() {
     const c = $("#clock");
-    c.className = "card clock " + (phase === "speak" ? "speak" : "") + (phase === "speak" && left <= 0 ? " over" : phase === "speak" && left <= 30 ? " warn" : "");
+    c.className = "card clock " + (phase === "speak" ? "speak" : "") + (phase === "speak" && left <= 0 ? " over" : phase === "speak" && left <= 15 ? " warn" : "");
     $("#phase").textContent = { ready: "Ready", think: "Think", speak: left <= 0 ? "Time — wrap it up" : "Speak", done: "Done" }[phase];
     $("#time").textContent = fmt(phase === "ready" ? Number($("#think").value) || Number($("#speak").value) : left);
     $("#bar").style.width = total ? Math.min(100, (1 - Math.max(left, 0) / total) * 100) + "%" : "0";
@@ -181,7 +181,7 @@
     timer = setInterval(() => {
       left--;
       if (phase === "think" && left <= 0) { beep(880); return startPhase("speak"); }
-      if (phase === "speak" && left === 30) beep(520, .1);
+      if (phase === "speak" && left === 15) beep(520, .1);
       if (phase === "speak" && left === 0) beep(440, .4);
       if (phase === "speak" && left < -30) { clearInterval(timer); phase = "done"; }
       paint();
