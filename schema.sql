@@ -65,3 +65,9 @@ CREATE TABLE IF NOT EXISTS self_ratings (speech_id TEXT PRIMARY KEY REFERENCES s
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS oauth_states (state TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, speech_id TEXT NOT NULL REFERENCES speeches(id) ON DELETE CASCADE, upload_url TEXT NOT NULL, size INTEGER NOT NULL, mime TEXT NOT NULL, received INTEGER NOT NULL DEFAULT 0, youtube_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE IF NOT EXISTS participants (id TEXT PRIMARY KEY, session_code TEXT NOT NULL REFERENCES sessions(code) ON DELETE CASCADE, name TEXT NOT NULL, secret TEXT NOT NULL, ord REAL NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS idx_participants_session ON participants(session_code);
+ALTER TABLE speeches ADD COLUMN participant_id TEXT;
+ALTER TABLE speeches ADD COLUMN filmer TEXT;
+ALTER TABLE sessions ADD COLUMN camera_mode TEXT NOT NULL DEFAULT 'rotation';
+ALTER TABLE sessions ADD COLUMN camera_person TEXT;

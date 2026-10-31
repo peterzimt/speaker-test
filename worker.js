@@ -54,6 +54,9 @@ async function route(request, env) {
   if (a === "speeches" && b && !c && m === "DELETE") { requireHost(request, env); return deleteSpeech(env, b); }
   if (a === "sessions" && b && c === "timer" && m === "POST") { requireHost(request, env); return setTimer(request, env, b); }
   if (a === "speeches" && b && c === "film" && m === "POST") { requireHost(request, env); return setFilm(request, env, b); }
+  if (a === "speeches" && b && c === "filmer" && m === "POST") { requireHost(request, env); return setFilmer(request, env, b); }
+  if (a === "sessions" && b && c === "camera" && m === "POST") { requireHost(request, env); return setCameraMode(request, env, b); }
+  if (a === "sessions" && b && c === "shuffle" && m === "POST") { requireHost(request, env); return shuffleCameras(env, b); }
 
   // ---- YouTube connection (host) and camera uploads
   if (a === "youtube" && b === "status" && m === "GET") { requireHost(request, env); return youtubeStatus(env); }
@@ -61,9 +64,9 @@ async function route(request, env) {
   if (a === "youtube" && b === "exchange" && m === "POST") { requireHost(request, env); return youtubeExchange(request, env); }
   if (a === "youtube" && b === "disconnect" && m === "POST") { requireHost(request, env); return youtubeDisconnect(env); }
   if (a === "camera" && b === "check" && m === "POST") { requireCamera(request, env); return json({ ok: true, youtube: Boolean(await getSetting(env, "yt_refresh")) }); }
-  if (a === "speeches" && b && c === "uploads" && m === "POST") { requireCamera(request, env); return startUpload(request, env, b); }
-  if (a === "uploads" && b && !c && m === "PUT") { requireCamera(request, env); return uploadChunk(request, env, b); }
-  if (a === "uploads" && b && !c && m === "GET") { requireCamera(request, env); return uploadStatus(env, b); }
+  if (a === "speeches" && b && c === "uploads" && m === "POST") { await requireUploader(request, env, b); return startUpload(request, env, b); }
+  if (a === "uploads" && b && !c && m === "PUT") { await requireUploader(request, env, null, b); return uploadChunk(request, env, b); }
+  if (a === "uploads" && b && !c && m === "GET") { await requireUploader(request, env, null, b); return uploadStatus(env, b); }
 
   // ---- admin (password protected)
   if (a === "admin" && b === "passports" && !c && m === "GET") { requireHost(request, env); return adminPassports(env); }
@@ -74,7 +77,9 @@ async function route(request, env) {
   if (a === "stats" && b === "benchmarks" && m === "GET") return publicBenchmarks(env);
 
   // ---- audience
-  if (a === "sessions" && b && c === "live" && m === "GET") return liveState(env, b);
+  if (a === "sessions" && b && c === "live" && m === "GET") return liveState(request, env, b);
+  if (a === "sessions" && b && c === "join" && m === "POST") return joinSession(request, env, b);
+  if (a === "sessions" && b && c === "volunteer" && m === "POST") return volunteer(request, env, b);
   if (a === "speeches" && b && c === "votes" && m === "POST") return castVote(request, env, b);
   if (a === "speeches" && b && c === "fillers" && m === "POST") return countFillers(request, env, b);
 
@@ -119,21 +124,30 @@ async function listSessions(env) {
 async function getSessionForHost(env, code) {
   const session = await mustGetSession(env, code);
   const { results } = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id,
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id,
             COUNT(v.voter) AS votes
        FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
       WHERE sp.session_code = ?
-      GROUP BY sp.id ORDER BY sp.created_at ASC`
+      GROUP BY sp.id ORDER BY sp.created_at ASC, sp.rowid ASC`
   ).bind(session.code).all();
-  return json({ session, speeches: results, timer: timerState(session) });
+  const plan = await filmingPlan(env, session, results);
+  for (const sp of results) sp.filmed_by = plan.filmerOf[sp.id];
+  return json({
+    session: { ...session, timer_end: undefined }, speeches: results, timer: timerState(session),
+    participants: plan.participants.map(p => ({ id: p.id, name: p.name, speech_id: p.speech_id })),
+    camera: { mode: session.camera_mode || "rotation", person: session.camera_person || null },
+  });
 }
 
 /* Speech timer, shared with every phone in the room.
    Stored as an absolute end time (ms); clients get "remaining_ms" so their own clock doesn't matter. */
 const TIMER_MAX = 60 * 60;
+const OVERTIME_MAX_MS = 3 * 60 * 1000;
 function timerState(session) {
   if (!session.timer_end) return null;
-  return { duration: session.timer_duration, remaining_ms: session.timer_end - Date.now() };
+  const remaining = session.timer_end - Date.now();
+  if (remaining < -OVERTIME_MAX_MS) return null;       // forgotten timer: stop flashing after 3 minutes over
+  return { duration: session.timer_duration, remaining_ms: remaining };
 }
 async function setTimer(request, env, code) {
   const session = await mustGetSession(env, code);
@@ -183,7 +197,7 @@ async function setSpeechStatus(env, id, status) {
   } else {
     await env.DB.batch([
       env.DB.prepare("UPDATE speeches SET status = 'closed', closed_at = datetime('now') WHERE id = ?").bind(id),
-      env.DB.prepare("UPDATE sessions SET current_speech_id = NULL WHERE code = ? AND current_speech_id = ?").bind(speech.session_code, id),
+      env.DB.prepare("UPDATE sessions SET current_speech_id = NULL, timer_end = NULL WHERE code = ? AND current_speech_id = ?").bind(speech.session_code, id),
     ]);
   }
   return json({ id, status });
@@ -204,17 +218,159 @@ async function deleteSpeech(env, id) {
 
 /* --------------------------------------------------------------- audience */
 
-async function liveState(env, code) {
+async function liveState(request, env, code) {
   const session = await mustGetSession(env, code);
   let speech = null;
   if (session.current_speech_id) {
-    speech = await env.DB.prepare("SELECT id, speaker, status, film, youtube_id FROM speeches WHERE id = ? AND status = 'open'")
+    speech = await env.DB.prepare("SELECT id, speaker, status, film, youtube_id, participant_id FROM speeches WHERE id = ? AND status = 'open'")
       .bind(session.current_speech_id).first();
   }
   const next = await env.DB.prepare(
-    "SELECT speaker FROM speeches WHERE session_code = ? AND status = 'waiting' ORDER BY created_at ASC LIMIT 1"
+    "SELECT speaker FROM speeches WHERE session_code = ? AND status = 'waiting' ORDER BY created_at ASC, rowid ASC LIMIT 1"
   ).bind(session.code).first();
-  return json({ session: { code: session.code, title: session.title, technique: session.technique }, speech, next: next ? next.speaker : null, timer: timerState(session) });
+  const out = { session: { code: session.code, title: session.title, technique: session.technique, camera_mode: session.camera_mode || "rotation" },
+    speech: speech ? { id: speech.id, speaker: speech.speaker, status: speech.status, film: speech.film, youtube_id: speech.youtube_id } : null,
+    next: next ? next.speaker : null, timer: timerState(session) };
+  const me = await participantFromRequest(request, env, session.code);
+  if (me) {
+    const { results: list } = await env.DB.prepare(
+      "SELECT id, speaker, status, film, filmer, participant_id, result_token, created_at FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC"
+    ).bind(session.code).all();
+    const plan = await filmingPlan(env, session, list);
+    const mine = list.find(x => x.participant_id === me.id);
+    const pending = list.filter(x => x.status !== "closed");
+    const duty = pending.find(x => x.status === "open" && plan.filmerOf[x.id]?.id === me.id) || pending.find(x => plan.filmerOf[x.id]?.id === me.id);
+    const firstWaiting = pending.find(x => x.status === "waiting");
+    out.me = {
+      id: me.id, name: me.name,
+      speech: mine ? { id: mine.id, status: mine.status, result_token: mine.result_token, film: mine.film } : null,
+      film: duty ? { speech_id: duty.id, speaker: duty.speaker, when: duty.status === "open" ? "now" : duty.id === firstWaiting?.id ? "next" : "later" } : null,
+      camera_person: session.camera_mode === "single" && session.camera_person === me.id,
+    };
+  }
+  return json(out);
+}
+
+/* ------------------------------------------------- participants & filming */
+/* People join from their phone with their name: they get a private id+secret (kept on the phone),
+   and, if they speak tonight, a place in the speaker list.
+   Who films whom:
+     rotation (default): participants in a random order form a circle; each speaker is filmed by the next person
+     single:             one camera person films everyone (any participant can volunteer, or the host picks)
+     camera:             only the dedicated camera page (camera password) films
+   The host can override any single speech. */
+
+async function participantFromRequest(request, env, code) {
+  const h = request.headers.get("X-Participant") || "";
+  const [id, secret] = h.split(".");
+  if (!id || !secret) return null;
+  const p = await env.DB.prepare("SELECT * FROM participants WHERE id = ? AND session_code = ?").bind(id, code).first();
+  return p && timingSafeEqual(secret, p.secret) ? p : null;
+}
+
+async function joinSession(request, env, code) {
+  const session = await mustGetSession(env, code);
+  const body = await readJson(request);
+  const name = clean(body.name, 60);
+  if (!name) throw new HttpError(400, "Please enter your name");
+  const speaking = body.speaking !== false, film = body.film === false ? 0 : 1;
+  let p = await participantFromRequest(request, env, session.code);
+  if (p) {
+    await env.DB.prepare("UPDATE participants SET name = ? WHERE id = ?").bind(name, p.id).run();
+    await env.DB.prepare("UPDATE speeches SET speaker = ?, film = ? WHERE participant_id = ? AND status = 'waiting'").bind(name, film, p.id).run();
+  } else {
+    p = { id: randomId(10), secret: randomId(20) };
+    await env.DB.prepare("INSERT INTO participants (id, session_code, name, secret, ord) VALUES (?, ?, ?, ?, ?)")
+      .bind(p.id, session.code, name, p.secret, Math.random()).run();
+  }
+  let speech = await env.DB.prepare("SELECT id, status, result_token FROM speeches WHERE participant_id = ?").bind(p.id).first();
+  if (speaking && !speech) {
+    speech = { id: randomId(10), status: "waiting", result_token: randomId(16) };
+    await env.DB.prepare("INSERT INTO speeches (id, session_code, speaker, result_token, film, participant_id) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(speech.id, session.code, name, speech.result_token, film, p.id).run();
+  } else if (!speaking && speech && speech.status === "waiting") {
+    await env.DB.prepare("DELETE FROM speeches WHERE id = ?").bind(speech.id).run();
+    speech = null;
+  }
+  return json({ participant: { id: p.id, secret: p.secret, name }, speech }, 201);
+}
+
+async function filmingPlan(env, session, speeches) {
+  const { results: participants } = await env.DB.prepare("SELECT id, name, ord FROM participants WHERE session_code = ? ORDER BY ord").bind(session.code).all();
+  const byId = Object.fromEntries(participants.map(p => [p.id, p]));
+  for (const sp of speeches) if (sp.participant_id && byId[sp.participant_id]) byId[sp.participant_id].speech_id = sp.id;
+  const who = p => p ? { type: "participant", id: p.id, name: p.name } : null;
+  const CAMERA = { type: "camera", name: "Camera page" }, NONE = { type: "none", name: "Not filmed" };
+  const mode = session.camera_mode || "rotation";
+  const filmerOf = {};
+  let k = 0;
+  for (const sp of speeches) {
+    if (!sp.film || sp.filmer === "none") { filmerOf[sp.id] = NONE; continue; }
+    if (sp.filmer === "camera") { filmerOf[sp.id] = CAMERA; continue; }
+    if (sp.filmer && byId[sp.filmer] && sp.filmer !== sp.participant_id) { filmerOf[sp.id] = { ...who(byId[sp.filmer]), forced: true }; continue; }
+    if (mode === "camera") { filmerOf[sp.id] = CAMERA; continue; }
+    if (mode === "single" && byId[session.camera_person] && session.camera_person !== sp.participant_id) { filmerOf[sp.id] = who(byId[session.camera_person]); continue; }
+    const others = participants.filter(p => p.id !== sp.participant_id);
+    if (!others.length) { filmerOf[sp.id] = CAMERA; continue; }
+    if (sp.participant_id && byId[sp.participant_id]) {
+      const i = participants.findIndex(p => p.id === sp.participant_id);
+      filmerOf[sp.id] = who(participants[(i + 1) % participants.length]);
+    } else filmerOf[sp.id] = who(others[k++ % others.length]);
+  }
+  return { participants, filmerOf };
+}
+
+async function setFilmer(request, env, id) {
+  const body = await readJson(request);
+  const f = body.filmer == null || body.filmer === "" || body.filmer === "auto" ? null : clean(String(body.filmer), 40);
+  const r = await env.DB.prepare("UPDATE speeches SET filmer = ? WHERE id = ?").bind(f, id).run();
+  if (!r.meta?.changes) throw new HttpError(404, "Speech not found");
+  return json({ id, filmer: f });
+}
+async function setCameraMode(request, env, code) {
+  const session = await mustGetSession(env, code);
+  const body = await readJson(request);
+  const mode = ["rotation", "single", "camera"].includes(body.mode) ? body.mode : "rotation";
+  const person = mode === "single" ? clean(String(body.person || ""), 40) || null : null;
+  await env.DB.prepare("UPDATE sessions SET camera_mode = ?, camera_person = ? WHERE code = ?").bind(mode, person, session.code).run();
+  return json({ mode, person });
+}
+async function shuffleCameras(env, code) {
+  const session = await mustGetSession(env, code);
+  const { results } = await env.DB.prepare("SELECT id FROM participants WHERE session_code = ?").bind(session.code).all();
+  if (results.length) await env.DB.batch(results.map(p => env.DB.prepare("UPDATE participants SET ord = ? WHERE id = ?").bind(Math.random(), p.id)));
+  return json({ ok: true, participants: results.length });
+}
+async function volunteer(request, env, code) {
+  const session = await mustGetSession(env, code);
+  const me = await participantFromRequest(request, env, session.code);
+  if (!me) throw new HttpError(401, "Join the session first");
+  const body = await readJson(request);
+  if (body.stop) {
+    if (session.camera_person === me.id) await env.DB.prepare("UPDATE sessions SET camera_mode = 'rotation', camera_person = NULL WHERE code = ?").bind(session.code).run();
+    return json({ camera_person: false });
+  }
+  await env.DB.prepare("UPDATE sessions SET camera_mode = 'single', camera_person = ? WHERE code = ?").bind(me.id, session.code).run();
+  return json({ camera_person: true });
+}
+
+/* Who may upload a speech's video: the camera page (camera/host password), or the participant assigned to film it. */
+async function requireUploader(request, env, speechId, uploadId) {
+  const h = request.headers.get("Authorization") || "";
+  const key = h.startsWith("Bearer ") ? h.slice(7) : "";
+  if ((env.CAMERA_KEY && timingSafeEqual(key, env.CAMERA_KEY)) || (env.HOST_KEY && timingSafeEqual(key, env.HOST_KEY))) return;
+  if (uploadId) { const up = await env.DB.prepare("SELECT speech_id FROM uploads WHERE id = ?").bind(uploadId).first(); speechId = up?.speech_id; }
+  const sp = speechId && await env.DB.prepare("SELECT * FROM speeches WHERE id = ?").bind(speechId).first();
+  if (sp) {
+    const session = await env.DB.prepare("SELECT * FROM sessions WHERE code = ?").bind(sp.session_code).first();
+    const me = await participantFromRequest(request, env, sp.session_code);
+    if (me) {
+      const { results: list } = await env.DB.prepare("SELECT id, film, filmer, participant_id FROM speeches WHERE session_code = ? ORDER BY created_at ASC, rowid ASC").bind(sp.session_code).all();
+      const plan = await filmingPlan(env, session, list);
+      if (plan.filmerOf[sp.id]?.id === me.id) return;
+    }
+  }
+  throw new HttpError(401, "You're not the camera for this speech");
 }
 
 async function castVote(request, env, speechId) {
@@ -738,7 +894,7 @@ function corsHeaders(request, env) {
   return {
     "Access-Control-Allow-Origin": ok ? origin || allowed[0] : allowed[0],
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Offset",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Offset, X-Participant",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
