@@ -27,6 +27,16 @@
   .linkbox { font: 12.5px/1.4 "Space Mono", monospace; word-break: break-all; background: rgba(0,0,0,.25); border-radius: 10px; padding: 10px 12px; }
   .qr-sm { width: 132px; background: var(--paper); padding: 8px; border-radius: 12px; flex: none; }
   .qr-sm svg { width: 100%; display: block; }
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; }
+  .cmp-row { display: grid; grid-template-columns: 84px 1fr 46px 50px; gap: 8px; align-items: center; font-size: 14px; padding: 5px 0; }
+  .cmp-row b { font: 700 11px/1 "Space Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .cmp-row .v { text-align: right; font-variant-numeric: tabular-nums; }
+  .cmp-row .d { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--on-dark-soft); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; }
+  .legend > span { display: inline-flex; gap: 6px; align-items: center; }
+  .legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.dash { background: repeating-linear-gradient(90deg, var(--on-dark) 0 4px, transparent 4px 7px); opacity: .6; }
+  @media (max-width: 700px) { .cmp-grid { grid-template-columns: 1fr; } }
   @media (max-width: 600px) { .hero { grid-template-columns: 1fr; text-align: center; } .avatar svg { margin: 0 auto; width: 120px; height: 120px; } .stat .n { font-size: 30px; } }
 </style>
 </head>
@@ -86,6 +96,21 @@
         <div id="trend"></div>
         <div class="row small" id="legend"></div>
       </div>
+    </div>
+
+    <div id="compare" class="card stack hidden">
+      <div class="row" style="justify-content: space-between">
+        <div><div class="kicker" style="margin-bottom: 4px">Compare yourself</div><p class="soft small" style="margin:0">Anonymous averages from everyone at the meetup.</p></div>
+        <select id="cmpSel" style="width: auto"></select>
+      </div>
+      <div class="cmp-grid">
+        <div id="cmpRadar"></div>
+        <div class="stack">
+          <div id="cmpRows"></div>
+          <p class="small soft" id="cmpNote" style="margin: 0"></p>
+        </div>
+      </div>
+      <div class="legend small soft"><span><i style="background:#E9B85C"></i>You (last 3 speeches)</span><span><i class="dash"></i><span id="cmpLegend">Group</span></span></div>
     </div>
 
     <div id="nextRep" class="paper stack hidden">
@@ -212,6 +237,8 @@
       $("#legend").innerHTML = CRITERIA.map(c => `<span class="crit"><i style="background:${c.hex}"></i>${c.label}</span>`).join("");
     }
 
+    renderCompare(p, scored);
+
     // milestones
     const best = Math.max(0, ...scored.flatMap(s => Object.values(s.scores).filter(v => v != null)));
     const badges = [
@@ -236,6 +263,44 @@
     const link = passport.link({ id: p.id, secret: k });
     $("#ppLink").textContent = link; $("#ppQr").innerHTML = qrSvg(link);
     $("#mailBtn").href = `mailto:?subject=${encodeURIComponent("My Aristotl.es speaker passport")}&body=${encodeURIComponent("My private passport link:\n" + link)}`;
+  }
+
+  /* ---------- compare with anonymous benchmarks ---------- */
+  async function renderCompare(p, scored) {
+    if (!scored.length) return $("#compare").classList.add("hidden");
+    let bench = renderCompare.cache;
+    if (!bench) { try { bench = renderCompare.cache = await api("/stats/benchmarks"); } catch { return; } }
+    const mine = Object.fromEntries(CRITERIA.map(c => { const v = scored.slice(-3).map(s => s.scores[c.key]).filter(x => x != null); return [c.key, v.length ? v.reduce((a, b) => a + b, 0) / v.length : null]; }));
+    const n = scored.length;
+    const levelId = n <= 1 ? "first" : n <= 3 ? "early" : n <= 6 ? "regular" : "seasoned";
+    const levelLabel = { first: "first speeches", early: "speeches 2–3", regular: "speeches 4–6", seasoned: "7+ speeches" };
+    const prof = chars && p.profile ? chars.byId[p.profile] : null;
+    const opts = [];
+    if (bench.levels?.[levelId]) opts.push(["level", `Students at your stage (${levelLabel[levelId]})`, bench.levels[levelId]]);
+    if (prof && bench.profiles?.[prof.id]) opts.push(["profile", `Other ${prof.name.replace(/^The /, "")}s`, bench.profiles[prof.id]]);
+    if (prof && bench.families?.[prof.g]) opts.push(["family", `${prof.group.name} (your family)`, bench.families[prof.g]]);
+    if (bench.levels?.first && levelId !== "first") opts.push(["first", "Everyone's first speech", bench.levels.first]);
+    if (bench.levels?.regular && levelId !== "regular") opts.push(["regular", "Students after 4–6 speeches", bench.levels.regular]);
+    if (bench.everyone) opts.push(["all", "Everyone, all speeches", bench.everyone]);
+    if (!opts.length) return $("#compare").classList.add("hidden");
+    const prev = $("#cmpSel").value;
+    $("#cmpSel").innerHTML = opts.map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join("");
+    if (opts.some(o => o[0] === prev)) $("#cmpSel").value = prev;
+    const draw = () => {
+      const [, label, g] = opts.find(o => o[0] === $("#cmpSel").value);
+      $("#cmpRadar").innerHTML = radarSvg(mine, { size: 320, compare: g.scores });
+      $("#cmpLegend").textContent = label;
+      $("#cmpRows").innerHTML = CRITERIA.map(c => {
+        const a = mine[c.key], b = g.scores[c.key], d = a != null && b != null ? a - b : null;
+        return `<div class="cmp-row"><b style="color:${c.hex}">${c.label}</b><div class="bar"><span style="width:${(a || 0) * 20}%;background:${c.hex}"></span></div><span class="v">${a == null ? "–" : a.toFixed(1)}</span><span class="d">${d == null ? "" : (Math.abs(d) < 0.05 ? "0.0" : (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1))}</span></div>`;
+      }).join("");
+      const ranked = CRITERIA.filter(c => mine[c.key] != null && g.scores[c.key] != null).map(c => [c, mine[c.key] - g.scores[c.key]]).sort((x, y) => y[1] - x[1]);
+      const best = ranked[0], worst = ranked[ranked.length - 1];
+      $("#cmpNote").textContent = `Compared with ${g.people} people. ` + (best && best[1] > 0.05 ? `You're ahead on ${best[0].label}` : "You're close to the group") + (worst && worst[1] < -0.05 ? `; ${worst[0].label} is where they're ahead of you.` : ".");
+    };
+    $("#cmpSel").onchange = draw;
+    draw();
+    $("#compare").classList.remove("hidden");
   }
 
   $("#copyBtn").addEventListener("click", async () => {

@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1B1426">
+<title>Admin — Students & Stats | Aristotl.es</title>
+<link rel="stylesheet" href="assets/tools.css">
+<style>
+  .tabs { display: inline-flex; border: 1px solid var(--card-line); border-radius: 999px; padding: 3px; margin: 6px 0 22px; }
+  .tabs button { appearance: none; background: none; border: 0; color: var(--on-dark-soft); font: 600 14px/1 Inter; padding: 10px 18px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--gold); color: var(--ink); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi .n { font: 600 40px/1 Fraunces, serif; color: var(--on-dark); }
+  .kpi .l { font-size: 13px; color: var(--on-dark-soft); margin-top: 8px; }
+  .kpi .s { font-size: 12.5px; color: var(--on-dark-soft); margin-top: 4px; }
+  .panel h3 { margin-bottom: 4px; }
+  .panel .sub { font-size: 13.5px; color: var(--on-dark-soft); margin: 0 0 14px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.t th { text-align: left; font: 700 11px/1.2 "Space Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark-soft); padding: 8px 8px; border-bottom: 1px solid var(--card-line); white-space: nowrap; }
+  table.t td { padding: 10px 8px; border-bottom: 1px solid rgba(237,230,242,.05); vertical-align: middle; }
+  table.t td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  table.t th.num { text-align: right; }
+  .cell { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: center; min-width: 90px; }
+  .cell b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .weak { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .weak i { width: 9px; height: 9px; border-radius: 50%; }
+  .hbar { display: grid; grid-template-columns: 96px 1fr 40px; gap: 10px; align-items: center; margin: 9px 0; font-size: 14px; }
+  .hbar .track { height: 14px; border-radius: 0 4px 4px 0; background: rgba(255,255,255,.04); }
+  .hbar .fill { height: 100%; border-radius: 0 4px 4px 0; background: var(--gold); }
+  .hbar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--on-dark-soft); }
+  .fam { border-left: 3px solid var(--fc); }
+  .fam-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .fam-name { font: 600 17px/1.2 Fraunces, serif; }
+  .muted { color: var(--on-dark-soft); font-size: 13px; }
+  .tip { position: fixed; pointer-events: none; z-index: 60; background: #0F0B16; border: 1px solid var(--card-line); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .chart rect.hit { fill: transparent; cursor: default; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--on-dark-soft); margin-top: 10px; }
+  .legend span { display: inline-flex; gap: 6px; align-items: center; }
+  .legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.dash { background: repeating-linear-gradient(90deg, var(--on-dark) 0 4px, transparent 4px 7px) !important; opacity: .6; }
+  /* students */
+  .srow { display: grid; grid-template-columns: 44px 1.6fr 1.2fr 80px 110px 70px auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .srow + .srow { margin-top: 8px; }
+  .srow .av svg { width: 44px; height: 44px; display: block; }
+  .srow .nm { font-weight: 600; }
+  .srow .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .hist { grid-column: 1 / -1; border-top: 1px solid var(--card-line); margin-top: 6px; padding-top: 10px; }
+  .hist a { color: inherit; text-decoration: none; display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; padding: 7px 0; align-items: center; font-size: 13.5px; }
+  .hist a:hover { color: var(--gold-bright); }
+  .dots { display: flex; gap: 3px; align-items: flex-end; height: 26px; }
+  .dots i { width: 7px; border-radius: 3px 3px 0 0; display: block; }
+  .modal { position: fixed; inset: 0; background: rgba(21,15,31,.9); z-index: 70; display: grid; place-items: center; padding: 16px; }
+  .modal .box { background: var(--paper); color: var(--on-paper); border-radius: 18px; padding: 22px; max-width: 360px; width: 100%; text-align: center; }
+  .modal svg { width: 100%; display: block; border-radius: 8px; }
+  @media (max-width: 960px) { .kpis, .g3 { grid-template-columns: repeat(2, 1fr); } .g2 { grid-template-columns: 1fr; } .srow { grid-template-columns: 44px 1fr auto; } .srow .hide-m { display: none; } }
+  @media (max-width: 560px) { .kpis, .g3 { grid-template-columns: 1fr 1fr; } .kpi .n { font-size: 30px; } .tablewrap { overflow-x: auto; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">aristotl<span>.es</span></a>
+  <nav class="nav"><a href="live.html">Live feedback</a><a class="on" href="admin.html">Admin</a></nav>
+</header>
+
+<main class="wrap">
+  <section id="login" class="narrow card stack hidden" style="margin: 40px auto">
+    <div class="kicker">Admin</div>
+    <h1>Students & <em>stats</em></h1>
+    <p class="soft">Enter your host password.</p>
+    <form id="loginForm" class="stack">
+      <div><label for="hostKey">Host password</label><input id="hostKey" type="password" autocomplete="current-password" required></div>
+      <button class="btn block" type="submit">Enter</button>
+      <div id="loginErr" class="notice err hidden"></div>
+    </form>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="kicker">Admin</div>
+    <h1 style="margin-bottom: 4px">Your <em>meetup</em> in numbers</h1>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="dash" aria-selected="true">Dashboard</button>
+      <button role="tab" data-tab="students" aria-selected="false">Students</button>
+    </div>
+    <div id="err" class="notice err hidden"></div>
+
+    <!-- DASHBOARD -->
+    <div id="tab-dash" class="stack">
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card panel chart">
+        <h3>Speeches per session</h3>
+        <p class="sub">Every session so far. Hover a bar for details.</p>
+        <div id="perSession"></div>
+      </div>
+
+      <div class="g2">
+        <div class="card panel">
+          <h3>The typical student</h3>
+          <p class="sub" id="typicalSub">Average feedback, all speeches.</p>
+          <div id="typicalRadar"></div>
+          <div class="legend"><span><i style="background:#E9B85C"></i>All speeches</span><span><i class="dash"></i>First speeches</span></div>
+        </div>
+        <div class="card panel">
+          <h3>First-speech issues</h3>
+          <p class="sub">The weakest criterion in each student's first speech.</p>
+          <div id="firstIssues"></div>
+          <p class="muted" id="firstNote" style="margin-top: 12px"></p>
+        </div>
+      </div>
+
+      <div class="card panel">
+        <h3>Progress by level</h3>
+        <p class="sub">Average score per criterion, by how many speeches a student had given. Only speeches added to a passport count here.</p>
+        <div class="tablewrap" id="levels"></div>
+      </div>
+
+      <div class="card panel">
+        <h3>By speaker profile</h3>
+        <p class="sub">Students who set their test profile in their passport, grouped by family.</p>
+        <div class="g3" id="families"></div>
+        <details style="margin-top: 16px"><summary class="muted" style="cursor:pointer">Detail by profile</summary><div class="tablewrap" id="profiles" style="margin-top: 12px"></div></details>
+      </div>
+
+      <div class="card panel">
+        <h3>By technique</h3>
+        <p class="sub">Average feedback in sessions on each technique.</p>
+        <div class="tablewrap" id="techniques"></div>
+      </div>
+    </div>
+
+    <!-- STUDENTS -->
+    <div id="tab-students" class="stack hidden">
+      <div class="row">
+        <input id="search" type="text" placeholder="Search a name or profile…" style="flex: 1; min-width: 200px">
+        <select id="sort" style="width: auto"><option value="recent">Most recent</option><option value="speeches">Most speeches</option><option value="name">Name A–Z</option><option value="score">Highest average</option></select>
+      </div>
+      <p class="muted" id="count"></p>
+      <div id="students"></div>
+    </div>
+  </section>
+</main>
+
+<div class="tip hidden" id="tip"></div>
+<div class="modal hidden" id="qrModal"><div class="box">
+  <div class="kicker" style="color: var(--on-paper-soft)">Scan to open your passport</div>
+  <h2 id="qrName" style="color: var(--on-paper)"></h2>
+  <div id="qrSvg"></div>
+  <button class="btn" style="margin-top: 14px" id="qrClose" type="button">Close</button>
+</div></div>
+
+<footer class="footer">aristotl.es · admin</footer>
+
+<script src="assets/config.js"></script>
+<script src="assets/qrcode.js"></script>
+<script src="assets/techniques.js"></script>
+<script src="assets/tools.js"></script>
+<script>
+(async () => {
+  const { $, $$, esc, api, store, CRITERIA, radarSvg, fmtDate, qrSvg, loadCharacters, passport } = AT;
+  const C = Object.fromEntries(CRITERIA.map(c => [c.key, c]));
+  const techBySlug = Object.fromEntries((window.TECHNIQUES || []).map(t => [t.slug, t]));
+  const avg5 = s => { const v = CRITERIA.map(c => s?.[c.key]).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const f1 = v => v == null ? "–" : Number(v).toFixed(1);
+  let chars = null, passports = [];
+
+  /* ---------- tooltip ---------- */
+  const tip = $("#tip");
+  function showTip(html, e) { tip.innerHTML = html; tip.classList.remove("hidden"); moveTip(e); }
+  function moveTip(e) { const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+  function hideTip() { tip.classList.add("hidden"); }
+
+  /* ---------- login ---------- */
+  function show(id) { $("#login").classList.toggle("hidden", id !== "login"); $("#app").classList.toggle("hidden", id !== "app"); }
+  async function start() {
+    if (!store.get("aristotles.hostKey")) return show("login");
+    try { await api("/host/check", { method: "POST", host: true }); }
+    catch (e) { if (e.status === 401) { store.del("aristotles.hostKey"); return show("login"); } }
+    show("app"); chars = await loadCharacters(); load();
+  }
+  $("#loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault(); store.set("aristotles.hostKey", $("#hostKey").value.trim());
+    try { await api("/host/check", { method: "POST", host: true }); start(); }
+    catch (ex) { store.del("aristotles.hostKey"); $("#loginErr").textContent = ex.message; $("#loginErr").classList.remove("hidden"); }
+  });
+
+  $$(".tabs button").forEach(b => b.addEventListener("click", () => {
+    $$(".tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+    $("#tab-dash").classList.toggle("hidden", b.dataset.tab !== "dash");
+    $("#tab-students").classList.toggle("hidden", b.dataset.tab !== "students");
+    try { history.replaceState(null, "", "#" + b.dataset.tab); } catch {}
+  }));
+  if (location.hash === "#students") $('.tabs button[data-tab="students"]').click();
+
+  async function load() {
+    try {
+      const [stats, list] = await Promise.all([api("/admin/stats", { host: true }), api("/admin/passports", { host: true })]);
+      passports = list.passports;
+      renderDash(stats); renderStudents();
+    } catch (ex) { $("#err").textContent = ex.message; $("#err").classList.remove("hidden"); }
+  }
+
+  /* ================= DASHBOARD ================= */
+  function renderDash(s) {
+    const t = s.totals;
+    const perSession = t.sessions ? (t.speeches / t.sessions).toFixed(1) : "–";
+    const perSpeech = t.speeches ? Math.round(t.votes / t.speeches) : "–";
+    $("#kpis").innerHTML = [
+      [t.sessions, "sessions", ""],
+      [t.speeches, "speeches", `${perSession} per session`],
+      [t.votes, "pieces of feedback", `${perSpeech} per speech`],
+      [t.active_passports, "students tracked", `${t.passports} passports created`],
+    ].map(([n, l, sub]) => `<div class="card kpi"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`).join("");
+
+    renderPerSession(s.sessions);
+
+    const first = s.levels.find(l => l.id === "first");
+    $("#typicalRadar").innerHTML = radarSvg(s.overall, { size: 360, compare: first && first.speeches ? first.scores : null });
+    $("#typicalSub").textContent = `Average feedback across all ${t.speeches} speeches, compared with students' first speeches.`;
+
+    // first-speech issues: one series → one color, sorted by count
+    const fi = Object.entries(s.firstIssues).sort((a, b) => b[1] - a[1]);
+    const totalFirst = fi.reduce((a, [, n]) => a + n, 0);
+    const maxN = Math.max(1, ...fi.map(([, n]) => n));
+    $("#firstIssues").innerHTML = totalFirst ? fi.map(([k, n]) => `
+      <div class="hbar"><span>${C[k].label}</span><div class="track"><div class="fill" style="width:${n / maxN * 100}%"></div></div><span class="v">${Math.round(n / totalFirst * 100)}%</span></div>`).join("")
+      : `<p class="muted">No first speeches tracked yet.</p>`;
+    $("#firstNote").textContent = totalFirst ? `${totalFirst} first speeches. Most common issue: ${C[fi[0][0]].label} (${C[fi[0][0]].hint.replace(/\.$/, "").toLowerCase()}).` : "";
+
+    // levels table
+    const levelRows = s.levels.map(l => {
+      const ov = avg5(l.scores);
+      const w = Object.entries(l.weakest).sort((a, b) => b[1] - a[1])[0];
+      return `<tr><td><strong>${esc(l.label)}</strong><div class="muted">${l.people} student${l.people == 1 ? "" : "s"} · ${l.speeches} speech${l.speeches == 1 ? "" : "es"}</div></td>
+        ${CRITERIA.map(c => cell(l.scores[c.key], c.hex)).join("")}
+        <td class="num"><strong>${f1(ov)}</strong></td>
+        <td>${w ? weakChip(w[0]) : "–"}</td></tr>`;
+    }).join("");
+    $("#levels").innerHTML = `<table class="t"><thead><tr><th>Level</th>${CRITERIA.map(c => `<th>${c.label}</th>`).join("")}<th class="num">Overall</th><th>Most common weakness</th></tr></thead><tbody>${levelRows}</tbody></table>`;
+
+    // families
+    const fams = chars ? chars.groups : [];
+    $("#families").innerHTML = fams.length ? fams.map(g => {
+      const st = s.byFamily[g.id];
+      const first = s.firstByFamily[g.id];
+      const w = st ? Object.entries(st.weakest).sort((a, b) => b[1] - a[1])[0] : null;
+      return `<div class="card fam stack" style="--fc:${g.color}">
+        <div class="fam-head"><span class="fam-name">${esc(g.name)}</span><span class="muted">${st ? st.people : 0} student${st && st.people == 1 ? "" : "s"}</span></div>
+        ${st ? `<div class="row" style="gap:14px;align-items:baseline"><span style="font:600 28px/1 Fraunces,serif">${f1(avg5(st.scores))}</span><span class="muted">average · ${st.speeches} speeches</span></div>
+          ${first && avg5(first.scores) != null ? `<div class="muted">First speech: ${f1(avg5(first.scores))} → now ${f1(avg5(st.scores))}</div>` : ""}
+          <div>${w ? `<span class="muted">Usual weak spot:</span> ${weakChip(w[0])}` : ""}</div>` : `<p class="muted" style="margin:0">No one yet.</p>`}
+      </div>`;
+    }).join("") : `<p class="muted">Profiles couldn't be loaded.</p>`;
+
+    const profRows = Object.entries(s.byProfile).sort((a, b) => b[1].people - a[1].people).map(([id, st]) => {
+      const p = chars?.byId[id];
+      const w = Object.entries(st.weakest).sort((a, b) => b[1] - a[1])[0];
+      return `<tr><td>${p ? `<span style="color:${p.group.color}">●</span> ${esc(p.name)}` : esc(id)}</td><td class="num">${st.people}</td><td class="num">${st.speeches}</td>
+        ${CRITERIA.map(c => `<td class="num">${f1(st.scores[c.key])}</td>`).join("")}<td>${w ? weakChip(w[0]) : "–"}</td></tr>`;
+    }).join("");
+    $("#profiles").innerHTML = profRows ? `<table class="t"><thead><tr><th>Profile</th><th class="num">Students</th><th class="num">Speeches</th>${CRITERIA.map(c => `<th class="num">${c.label}</th>`).join("")}<th>Weak spot</th></tr></thead><tbody>${profRows}</tbody></table>` : `<p class="muted">No profiles set yet.</p>`;
+
+    // techniques
+    const techRows = Object.entries(s.byTechnique).sort((a, b) => b[1].speeches - a[1].speeches).map(([slug, st]) => `
+      <tr><td>${esc(techBySlug[slug]?.title || slug)}</td><td class="num">${st.speeches}</td>${CRITERIA.map(c => `<td class="num">${f1(st.scores[c.key])}</td>`).join("")}<td class="num"><strong>${f1(avg5(st.scores))}</strong></td></tr>`).join("");
+    $("#techniques").innerHTML = techRows ? `<table class="t"><thead><tr><th>Technique</th><th class="num">Speeches</th>${CRITERIA.map(c => `<th class="num">${c.label}</th>`).join("")}<th class="num">Overall</th></tr></thead><tbody>${techRows}</tbody></table>` : `<p class="muted">No techniques recorded yet.</p>`;
+  }
+  function cell(v, hex) { return `<td><div class="cell"><b>${f1(v)}</b><div class="bar"><span style="width:${(v || 0) * 20}%;background:${hex}"></span></div></div></td>`; }
+  function weakChip(k) { return `<span class="weak"><i style="background:${C[k].hex}"></i>${C[k].label}</span>`; }
+
+  function renderPerSession(list) {
+    if (!list.length) { $("#perSession").innerHTML = `<p class="muted">No sessions yet.</p>`; return; }
+    const W = 900, H = 220, pl = 34, pr = 8, pt = 10, pb = 30;
+    const max = Math.max(4, ...list.map(s => s.speeches));
+    const step = Math.ceil(max / 4);
+    const top = step * 4;
+    const bw = (W - pl - pr) / list.length;
+    const y = v => pt + (H - pt - pb) * (1 - v / top);
+    let g = "";
+    for (let v = 0; v <= top; v += step) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(237,230,242,${v ? .07 : .2})"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#A99FB5" font-family="Space Mono">${v}</text>`;
+    const labelEvery = Math.ceil(list.length / 12);
+    list.forEach((s, i) => {
+      const x = pl + i * bw, w = Math.max(2, Math.min(42, bw - 4)), cx = x + bw / 2;
+      const h = (H - pt - pb) * s.speeches / top;
+      if (h > 0) g += `<path d="M${cx - w / 2},${y(0)} V${y(s.speeches) + 4} q0,-4 4,-4 h${w - 8} q4,0 4,4 V${y(0)} Z" fill="#E9B85C"/>`;
+      if (i % labelEvery === 0) g += `<text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="11" fill="#A99FB5" font-family="Space Mono">${new Date(s.created_at.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</text>`;
+      g += `<rect class="hit" data-i="${i}" x="${x}" y="${pt}" width="${bw}" height="${H - pt - pb}"/>`;
+    });
+    $("#perSession").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Speeches per session">${g}</svg>`;
+    $$("#perSession rect.hit").forEach(r => {
+      const s = list[r.dataset.i];
+      const html = `<strong>${esc(s.title)}</strong><br><span class="muted">${fmtDate(s.created_at)}${techBySlug[s.technique] ? " · " + esc(techBySlug[s.technique].title) : ""}</span><br>${s.speeches} speeches · ${s.votes} feedback`;
+      r.addEventListener("mouseenter", e => showTip(html, e)); r.addEventListener("mousemove", moveTip); r.addEventListener("mouseleave", hideTip);
+    });
+  }
+
+  /* ================= STUDENTS ================= */
+  function renderStudents() {
+    const q = $("#search").value.trim().toLowerCase();
+    const sort = $("#sort").value;
+    let list = passports.filter(p => {
+      const prof = chars?.byId[p.profile];
+      return !q || p.name.toLowerCase().includes(q) || (prof && prof.name.toLowerCase().includes(q));
+    });
+    const by = { recent: (a, b) => (b.last_speech || b.created_at).localeCompare(a.last_speech || a.created_at), speeches: (a, b) => b.speeches - a.speeches, name: (a, b) => a.name.localeCompare(b.name), score: (a, b) => (b.overall ?? -1) - (a.overall ?? -1) };
+    list.sort(by[sort]);
+    $("#count").textContent = `${list.length} of ${passports.length} passports`;
+    $("#students").innerHTML = list.length ? list.map(p => {
+      const prof = chars?.byId[p.profile];
+      const av = prof ? chars.draw(prof) : `<svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="94" fill="#E9B85C" fill-opacity=".13" stroke="#E9B85C" stroke-width="5"/><text x="100" y="128" text-anchor="middle" font-family="Fraunces, serif" font-size="84" font-weight="600" fill="#F2D08A">${esc(p.name.slice(0, 1).toUpperCase())}</text></svg>`;
+      return `<div class="srow" data-id="${p.id}">
+        <div class="av">${av}</div>
+        <div><div class="nm">${esc(p.name)}</div><div class="muted">since ${fmtDate(p.created_at)}</div></div>
+        <div class="hide-m muted">${prof ? `<span style="color:${prof.group.color}">●</span> ${esc(prof.name)}` : "No profile"}</div>
+        <div class="hide-m"><strong>${p.speeches}</strong> <span class="muted">speech${p.speeches == 1 ? "" : "es"}</span></div>
+        <div class="hide-m muted">${p.last_speech ? "last " + fmtDate(p.last_speech) : "—"}</div>
+        <div class="hide-m"><strong>${f1(p.overall)}</strong> <span class="muted">avg</span></div>
+        <div class="acts">
+          <button class="btn ghost small" data-act="hist">History</button>
+          <button class="btn ghost small" data-act="qr">QR</button>
+          <button class="btn ghost small" data-act="copy">Copy link</button>
+          <a class="btn small" target="_blank" rel="noopener" href="${passport.link(p)}">Open</a>
+        </div>
+      </div>`;
+    }).join("") : `<div class="card muted">No passports yet. They appear here as soon as a speaker creates one from their feedback card.</div>`;
+  }
+  $("#search").addEventListener("input", renderStudents);
+  $("#sort").addEventListener("change", renderStudents);
+
+  $("#students").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const row = b.closest(".srow"); const p = passports.find(x => x.id === row.dataset.id);
+    if (b.dataset.act === "copy") {
+      try { await navigator.clipboard.writeText(passport.link(p)); b.textContent = "Copied ✓"; setTimeout(() => b.textContent = "Copy link", 1600); }
+      catch { prompt("Passport link:", passport.link(p)); }
+    }
+    if (b.dataset.act === "qr") { $("#qrName").textContent = p.name; $("#qrSvg").innerHTML = qrSvg(passport.link(p)); $("#qrModal").classList.remove("hidden"); }
+    if (b.dataset.act === "hist") {
+      const open = row.querySelector(".hist");
+      if (open) { open.remove(); b.textContent = "History"; return; }
+      b.textContent = "Loading…";
+      try {
+        const d = await api("/admin/passports/" + p.id, { host: true });
+        const items = d.speeches.slice().reverse().map((s, i, arr) => {
+          const bars = CRITERIA.map(c => `<i title="${c.label} ${f1(s.scores[c.key])}" style="height:${Math.max(3, (s.scores[c.key] || 0) * 5)}px;background:${c.hex}"></i>`).join("");
+          return `<a href="speech.html?id=${s.id}&k=${s.token}" target="_blank" rel="noopener"><span>#${arr.length - i} · ${fmtDate(s.date)}</span><span class="muted">${esc(s.session)}${techBySlug[s.technique] ? " · " + esc(techBySlug[s.technique].title) : ""} · ${s.votes} feedback · avg ${f1(avg5(s.scores))}</span><span class="dots">${bars}</span></a>`;
+        }).join("");
+        row.insertAdjacentHTML("beforeend", `<div class="hist">${items || `<p class="muted">No speeches yet.</p>`}</div>`);
+        b.textContent = "Hide";
+      } catch (ex) { b.textContent = "History"; alert(ex.message); }
+    }
+  });
+  $("#qrClose").addEventListener("click", () => $("#qrModal").classList.add("hidden"));
+  $("#qrModal").addEventListener("click", (e) => { if (e.target.id === "qrModal") $("#qrModal").classList.add("hidden"); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#qrModal").classList.add("hidden"); });
+
+  start();
+})();
+</script>
+</body>
+</html>
