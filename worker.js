@@ -994,7 +994,7 @@ async function speechAnalysis(request, env, id) {
   const fresh = cached && (cached.key === key || Date.now() - Date.parse(cached.created_at + "Z") < 90_000);
   if (fresh && !body.again) return json({ ...out, report: JSON.parse(cached.report), report_at: cached.created_at });
   try {
-    const report = await coachReport(env, { speech, m, room, extras, lang, context: body.context || {}, tokens: m.tokens });
+    const report = await coachReport(env, { speech, m, room, extras, lang, context: body.context || {}, tokens: m.tokens, speechLang: tr.lang });
     await env.DB.prepare("INSERT OR REPLACE INTO speech_reports (speech_id, lang, key, report, created_at) VALUES (?, ?, ?, ?, datetime('now'))").bind(id, lang, key, JSON.stringify(report)).run();
     return json({ ...out, report });
   } catch (e) {
@@ -1022,7 +1022,7 @@ const COACH_ROLES = {
 };
 const ROLE_KEYS = Object.keys(COACH_ROLES);
 
-async function coachReport(env, { speech, m, room, extras, lang, context, tokens }) {
+async function coachReport(env, { speech, m, room, extras, lang, context, tokens, speechLang }) {
   const L = LANG_NAME[lang];
   const sec = ms => `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, "0")}`;
   const top = t => t.top.map(([w, n]) => `“${w}” ×${n}`).join(", ") || "none";
@@ -1067,16 +1067,32 @@ async function coachReport(env, { speech, m, room, extras, lang, context, tokens
   ].filter(x => x !== "").join("\n");
 
   const profiles = ROLE_KEYS.map(k => `${k} (${COACH_ROLES[k].en}): ${COACH_ROLES[k].profiles[lang].join(" / ")}`).join("\n");
+  const spoken = LANG_NAME[speechLang] || speechLang || "the speech's language";
   const system = `You are the coach of Aristotl.es, a friendly public speaking club in Madrid. You review one short club speech using its automatic transcript, measurements and the feedback people in the room gave.
 Rules:
-- Write every text value in ${L}, in a warm, direct, concrete tone. Address the speaker as "you" (${lang === "fr" ? "tutoiement" : lang === "es" ? "tuteo" : "informal"}).
-- Be specific: quote the speaker's own words (short quotes) and use the numbers. No generic advice.
-- The transcript is automatic: don't criticise spelling or punctuation, and remember some fillers may be missing from it.
-- You cannot see the speaker. For "body" use only what the room reported; if nothing was reported, verdict "unknown" and an empty note.
-- For each habit area, "profile" is the name of the matching speaker profile when the speaker clearly shows that habit, chosen from this list, otherwise "":
+- Write every explanation in ${L}, warm, direct and concrete. Address the speaker as "you" (${lang === "fr" ? "tutoiement" : lang === "es" ? "tuteo" : "informal"}).
+- Quotes from the speech and rewritten sentences stay in the language the speaker used (${spoken}), never translated.
+- Be specific: quote the speaker's own words (short quotes) and use the measured numbers. No generic advice.
+- The transcript is automatic: don't comment on spelling or punctuation; some fillers may be missing from it.
+Fields:
+- main_message: the speaker's own core message, in one sentence, as they would say it (NOT your opinion of the speech). message_clear: false only if no clear message comes through.
+- summary: one or two sentences on what the speech said.
+- structure: opening / body / closing = what the speaker did in each part and whether it worked; verdict clear, partial or unclear.
+- theme: two sentences on how well the speech practised tonight's theme, using the plan as a checklist. "" if there is no theme.
+- habits: exactly one entry per area, each with a verdict "good", "ok" or "work" and a one- or two-sentence note with evidence (a number or a quote):
+  um = filler sounds and crutch words (measured counts, human counter);
+  structure = opening, clear point, order, real ending;
+  body = posture, eyes, hands: you cannot see it, so use only the room's reports; if there are none, verdict "unknown" and note "";
+  voice = pace in words/min, pauses, pitch and loudness variation, room comments about the voice;
+  clarity = sentence length, jargon, numbers, concrete examples;
+  confidence = hedges, apologies, taking a clear position, strong ending;
+  energy = connection with the audience, story, emotion, humour, room comments.
+  "profile": when the speaker clearly shows that area's habit, the matching name from this list, otherwise "":
 ${profiles}
-- improvements: the 3 most useful changes for next time, most important first. "example" shows how: rewrite one of their actual sentences better, or give a one-line drill.
-- room_vs_ai: say where the room's feedback and your analysis agree or differ (one or two sentences). If nobody gave feedback, say so briefly.
+- strengths: two specific things that worked.
+- improvements: the 3 most useful changes for next time, most important first; "example" rewrites one of their actual sentences better (in ${spoken}) or gives a one-line drill.
+- room_vs_ai: where the room's feedback and your analysis agree or differ, in one or two sentences. If nobody gave feedback, say so briefly.
+- drill: one short exercise for next week.
 Return only JSON matching the schema.`;
 
   const schema = {
@@ -1095,7 +1111,7 @@ Return only JSON matching the schema.`;
     },
     required: ["summary", "main_message", "message_clear", "structure", "theme", "habits", "strengths", "improvements", "room_vs_ai", "drill"],
   };
-  const messages = [{ role: "system", content: system }, { role: "user", content: lines + `\n\nWrite the review in ${L}. One entry in "habits" for each of: ${ROLE_KEYS.join(", ")}. Two strengths, three improvements, one drill for next week. "theme": how well they practised tonight's theme ("" if there is no theme).` }];
+  const messages = [{ role: "system", content: system }, { role: "user", content: lines + `\n\nWrite the review in ${L} (quotes and rewrites in ${spoken}). One entry in "habits" for each of: ${ROLE_KEYS.join(", ")}, each with a verdict and an evidence-based note.` }];
   let res;
   try { res = await env.AI.run(COACH_LLM, { messages, response_format: { type: "json_schema", json_schema: schema }, max_tokens: 2200, temperature: 0.4 }); }
   catch (e) { console.error("coach json_schema", e && e.message); res = await env.AI.run(COACH_LLM, { messages, max_tokens: 2200, temperature: 0.4 }); }
