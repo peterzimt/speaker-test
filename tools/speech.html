@@ -77,6 +77,7 @@
       <p class="small soft" id="gapNote" style="margin:0"></p>
     </div>
     <div class="card stack hidden" id="videoCard"><div class="kicker" style="margin:0">Your speech on video</div><div class="video" id="videoBox"></div><p class="small soft" style="margin:0">Unlisted on YouTube: only people with the link can watch it.</p></div>
+    <div class="card stack hidden" id="aiCard"></div>
     <div class="card"><div class="scores" id="scores"></div></div>
 
     <div class="card" id="strength"></div>
@@ -121,6 +122,7 @@
 <script src="assets/techniques.js"></script>
 <script src="assets/practice.js"></script>
 <script src="assets/tools.js"></script>
+<script src="assets/analysis.js"></script>
 <script src="assets/i18n-dict.js"></script>
 <script src="assets/i18n.js"></script>
 <script>AT.langSwitch(document.querySelector(".topbar .row, .topbar .nav"));</script>
@@ -213,6 +215,10 @@
   const comments = r.worked.map(x => `<div class="comment">✓ ${esc(x)}</div>`).join("") + r.next_rep.map(x => `<div class="comment next">→ ${esc(x)}</div>`).join("");
   if (comments) $("#comments").innerHTML = comments; else $("#commentsCard").classList.add("hidden");
   $("#card").classList.remove("hidden");
+  const plan = window.PRACTICE_PLANS?.[r.speech.technique];
+  ATAnalysis.mount($("#aiCard"), { id, k, target: r.speech.target,
+    context: { theme: plan ? { title: techBySlug[r.speech.technique]?.title || r.speech.technique, focus: plan.focus, plan: plan.plan } : null,
+               roles: Object.fromEntries(Object.entries(window.AUDIENCE_ROLES || {}).map(([key, R]) => [key, { items: R.items, count: R.count || null }])) } });
 
   /* ---------- passport ---------- */
   const ppErr = (m) => { $("#ppErr").textContent = m || ""; $("#ppErr").classList.toggle("hidden", !m); };

@@ -11,6 +11,7 @@
   window.ATRecorder = function ({ headers, onChange }) {
     const API = AT.API + "/api";
     const self = { stream: null, rec: null, recSpeech: null, recStart: 0, queue: [], uploading: false };
+    const cap = window.ATAudio ? ATAudio.capture() : null;             // sound copy for the AI analysis
     let chunks = [];
     const changed = () => { try { onChange && onChange(self); } catch {} };
 
@@ -27,6 +28,7 @@
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
       });
+      cap?.prime();
       changed(); return self.stream;
     };
     self.close = function () {
@@ -39,7 +41,16 @@
       const rec = new MediaRecorder(self.stream, mime ? { mimeType: mime, videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 128_000 } : undefined);
       chunks = []; self.recSpeech = { id: speech.id, speaker: speech.speaker }; self.recStart = Date.now();
       rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      cap?.start(self.stream);
+      const capFor = { id: speech.id };
       rec.onstop = () => {
+        const aiItem = { speech: { id: capFor.id, speaker: speech.speaker }, ai: "sending" };
+        cap?.stop().then(audio => {
+          if (!audio) return;
+          const q = self.queue.find(x => x.speech.id === capFor.id) || aiItem;
+          q.ai = "sending"; changed();
+          return ATAudio.send(audio, { speechId: capFor.id, source: "phone", call }).then(() => { q.ai = "sent"; changed(); }, (ex) => { q.ai = "error"; q.aiErr = ex.message; changed(); });
+        }).catch(() => {});
         const type = (rec.mimeType || mime || "video/webm").split(";")[0];
         const blob = new Blob(chunks, { type });
         const item = { speech: self.recSpeech, blob, type, state: "waiting", received: 0, uploadId: null, youtube: null, err: null, secs: Math.round((Date.now() - self.recStart) / 1000) };

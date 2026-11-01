@@ -258,6 +258,7 @@
 <script src="assets/i18n-dict.js"></script>
 <script src="assets/i18n.js"></script>
 <script>AT.langSwitch(document.getElementById("langSlot"));</script>
+<script src="assets/audiocap.js"></script>
 <script src="assets/recorder.js"></script>
 <script>
 (() => {
@@ -499,7 +500,7 @@
         ${r.previous ? `<div class="card stack" style="margin-top:14px"><strong>${esc(t("You vs the original"))}</strong>${PracticeUI.previous(r.previous, r.scores, CRITERIA, esc)}</div>` : ""}
         ${r.roles && r.roles.length ? `<div class="card stack" style="margin-top:14px"><strong>🎯 ${esc(t("Role reports"))}</strong>${PracticeUI.roleReports(r.roles, esc)}</div>` : ""}
         <div class="card stack" style="margin-top:14px"><strong>💬 What they wrote</strong>${said || `<p class="small soft" style="margin:0">No written comments this time.</p>`}</div>
-        <div style="margin-top:14px"><a class="btn block" href="${card}">Full feedback card & passport →</a></div>`;
+        <div style="margin-top:14px"><a class="btn block" href="${card}">🤖 AI analysis, transcript & full card →</a></div>`;
     } catch (ex) { box.innerHTML = `<div class="notice err" style="margin-top:14px">${esc(ex.message)}</div>`; }
   }
 
@@ -612,7 +613,8 @@
     for (const q of rec.queue.slice(-3)) {
       const pct = q.blob.size ? Math.round(q.received / q.blob.size * 100) : 0;
       const st = q.state === "done" ? "✓ Uploaded to YouTube" : q.state === "uploading" ? `Uploading… ${pct}%` : q.state === "error" ? `⚠ ${esc(q.err)}` : "Waiting to upload…";
-      html += `<div class="uprow">🎞 ${esc(q.speech.speaker)} · ${st}${q.state === "error" ? ` <a href="#" data-retry="${rec.queue.indexOf(q)}">Retry</a>` : ""}<div class="bar"><span style="width:${q.state === "done" ? 100 : pct}%"></span></div></div>`;
+      const ai = q.ai === "sent" ? " · 🤖 Sent for analysis" : q.ai === "sending" ? " · 🤖 Sending the sound…" : q.ai === "error" ? " · 🤖 Analysis not sent" : "";
+      html += `<div class="uprow">🎞 ${esc(q.speech.speaker)} · ${st}${ai}${q.state === "error" ? ` <a href="#" data-retry="${rec.queue.indexOf(q)}">Retry</a>` : ""}<div class="bar"><span style="width:${q.state === "done" ? 100 : pct}%"></span></div></div>`;
     }
     if (rec.pending()) html += `<p class="small soft" style="margin:0">Keep this page open until the upload is done.</p>`;
     d.innerHTML = html; d.classList.toggle("now", f?.when === "now" || !!rec.rec); d.classList.remove("hidden");

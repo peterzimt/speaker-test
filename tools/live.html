@@ -173,6 +173,11 @@
           </div>
           <p class="small soft" style="margin: 0">People join by scanning the QR code and typing their name: they're added to the speakers list. You can change who films any speech in its row.</p>
         </div>
+        <div class="card stack" id="aiCard">
+          <div class="row" style="justify-content: space-between"><h3 style="margin: 0">🤖 AI analysis</h3><span class="small soft" id="aiState"></span></div>
+          <label class="chk"><input type="checkbox" id="roomMic"> 🎙️ Also record every speech with this laptop's microphone</label>
+          <p class="small soft" style="margin: 0">The filming phone sends the sound of each filmed speech. Tick this for speeches nobody films. After the speech, the speaker's card shows the exact transcript, the counts (“um”s, pace, pauses, hedges…) and coaching feedback that includes what the room said.</p>
+        </div>
         <form id="addForm" class="card row" autocomplete="off">
           <input id="speaker" type="text" maxlength="60" placeholder="Next speaker's first name" style="flex: 1; min-width: 160px" required>
           <label class="chk" title="Untick if the speaker doesn't want to be filmed"><input type="checkbox" id="filmOk" checked> 🎥 Film for video feedback</label>
@@ -228,6 +233,7 @@
 <script src="assets/techniques.js"></script>
 <script src="assets/practice.js"></script>
 <script src="assets/tools.js"></script>
+<script src="assets/audiocap.js"></script>
 <script>
 (() => {
   const { $, esc, api, store, qrSvg, radarSvg, siteUrl } = AT;
@@ -300,7 +306,8 @@
 
   async function refresh() {
     try {
-      const { session, speeches, timer, participants, camera } = await api("/sessions/" + code, { host: true });
+      const r = await api("/sessions/" + code, { host: true });
+      const { session, speeches, timer, participants, camera } = r;
       renderFilming(participants || [], camera || { mode: "rotation" }); window.__parts = participants || [];
       if (document.activeElement !== $("#themeSel")) $("#themeSel").value = session.technique || "";
       window.__speeches = speeches;
@@ -315,10 +322,39 @@
       const nx = speeches.find(s => s.status === "waiting");
       $("#nextUp").classList.toggle("hidden", !nx); if (nx) $("#nextName").textContent = nx.speaker;
       renderQueue(speeches);
+      roomMicFollow(speeches.find(x => x.status === "open"), r.ai);
     } catch (ex) {
       if (ex.status === 404) { store.del("aristotles.hostSession"); clearInterval(timer); loadSetup(); return; }
       err($("#sessErr"), ex.message);
     }
+  }
+
+  /* ---------- room microphone for the AI analysis ---------- */
+  const roomCap = ATAudio.capture(); let micStream = null, capId = null, capName = "", aiOn = true;
+  const sentIds = new Set();
+  function aiState(t) { $("#aiState").textContent = t; }
+  async function micOn() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+      roomCap.prime(); store.set("aristotles.roomMic", 1); aiState(aiOn ? "🎙️ Ready: records when a speech starts" : "");
+    } catch (ex) { $("#roomMic").checked = false; store.del("aristotles.roomMic"); aiState("⚠ Microphone blocked: " + ex.message); }
+  }
+  function micOff() { micStream?.getTracks().forEach(t => t.stop()); micStream = null; store.del("aristotles.roomMic"); aiState(""); }
+  $("#roomMic").addEventListener("change", e => (e.target.checked ? micOn() : (finishCap(), micOff())));
+  document.addEventListener("click", () => roomCap.prime(), { once: true });
+  if (store.get("aristotles.roomMic")) { $("#roomMic").checked = true; micOn(); }
+  function finishCap() {
+    if (!capId) return;
+    const id = capId, name = capName; capId = null; sentIds.add(id);
+    aiState(`Sending ${name}'s speech…`);
+    roomCap.stop().then(a => a && ATAudio.send(a, { speechId: id, source: "room", call: (path, o) => api(path, { method: o.method, host: true, body: JSON.parse(o.body) }) }))
+      .then(ok => aiState(ok ? `✓ ${name}'s speech sent for analysis` : `${name}: too short to analyse`), ex => aiState(`⚠ ${name}: ${ex.message}`));
+  }
+  function roomMicFollow(open, ai) {
+    aiOn = ai !== false;
+    if (!aiOn && !capId) { aiState("Not switched on yet (Workers AI binding “AI”)"); return; }
+    if (capId && (!open || open.id !== capId)) finishCap();
+    if (!capId && micStream && open && !sentIds.has(open.id) && roomCap.start(micStream)) { capId = open.id; capName = open.speaker; aiState(`● Recording ${open.speaker}`); }
   }
 
   function renderNow(s) {
@@ -336,12 +372,12 @@
 
   function renderQueue(list) {
     const parts = window.__parts || [];
-    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic, s.impromptu, s.kind, s.after, JSON.stringify(s.roles || [])]), parts.length]);
+    const key = JSON.stringify([list.map(s => [s.id, s.status, s.votes, s.film, s.youtube_id, s.speaker, s.filmer, s.filmed_by?.id, s.filmed_by?.type, s.topic, s.impromptu, s.kind, s.after, JSON.stringify(s.roles || []), s.audio]), parts.length]);
     if (key === lastQueueKey) return;
     lastQueueKey = key;
     $("#queue").innerHTML = list.length ? list.map(s => `
       <div class="q-item ${s.status === "open" ? "open" : ""}">
-        <div><span class="who">${esc(s.speaker)}</span>${s.kind ? ` <span class="small" style="color:var(--gold-bright)">${AGAIN_LABEL[s.kind]}${s.after ? " · after " + esc(s.after) : ""}${s.seconds ? " · " + s.seconds + " s" : ""}</span>` : ""}${s.topic ? `<br><span class="small" style="font-style:italic">${s.impromptu ? "🎲 " : ""}“${esc(s.topic)}”</span>` : s.impromptu ? `<br><span class="small">🎲 Surprise topic</span>` : ""}<br>
+        <div><span class="who">${esc(s.speaker)}</span>${s.audio ? ` <span class="small" title="Sound received: AI analysis on the speaker's card">🤖</span>` : ""}${s.kind ? ` <span class="small" style="color:var(--gold-bright)">${AGAIN_LABEL[s.kind]}${s.after ? " · after " + esc(s.after) : ""}${s.seconds ? " · " + s.seconds + " s" : ""}</span>` : ""}${s.topic ? `<br><span class="small" style="font-style:italic">${s.impromptu ? "🎲 " : ""}“${esc(s.topic)}”</span>` : s.impromptu ? `<br><span class="small">🎲 Surprise topic</span>` : ""}<br>
           ${s.status !== "closed" && (s.roles || []).length ? `<span class="small" style="opacity:.8">🎯 ${s.roles.map(r => `${AUDIENCE_ROLES[r.role]?.icon || ""} ${esc(r.name)}`).join(" · ")}</span><br>` : ""}
           <span class="small soft">${s.status === "open" ? "Speaking · voting open" : s.status === "closed" ? "Done" : "Up next"} · ${s.votes} vote${s.votes == 1 ? "" : "s"}${s.youtube_id ? ` · <a href="https://youtu.be/${s.youtube_id}" target="_blank" rel="noopener">▶ video</a>` : ""}</span></div>
         <div class="q-actions">
