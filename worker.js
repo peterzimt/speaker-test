@@ -848,9 +848,11 @@ async function audioChunk(request, env, id) {
   let words = [], lang = null, text = "";
   if (typeof body.audio === "string" && body.audio.length > 100) {
     // later pieces: same language as the first one, with fillers written in that language
-    const first = idx > 0 ? await env.DB.prepare("SELECT lang FROM speech_audio WHERE speech_id = ? AND source = ? AND lang IS NOT NULL ORDER BY idx LIMIT 1").bind(id, source).first() : null;
-    const known = first?.lang && FILLER_PROMPT[first.lang] ? first.lang : "";
-    const opts = { audio: body.audio, initial_prompt: FILLER_PROMPT[known] };
+    // speeches are in English (SPEECH_LANG variable to change it; "auto" = detect from the first piece)
+    const fixed = String(env.SPEECH_LANG || "en").toLowerCase();
+    const first = fixed === "auto" && idx > 0 ? await env.DB.prepare("SELECT lang FROM speech_audio WHERE speech_id = ? AND source = ? AND lang IS NOT NULL ORDER BY idx LIMIT 1").bind(id, source).first() : null;
+    const known = fixed !== "auto" ? fixed : first?.lang && FILLER_PROMPT[first.lang] ? first.lang : "";
+    const opts = { audio: body.audio, initial_prompt: FILLER_PROMPT[known] || FILLER_PROMPT[""] };
     if (known) opts.language = known;
     let res;
     try { res = await env.AI.run(WHISPER, opts); }
@@ -983,7 +985,8 @@ async function speechAnalysis(request, env, id) {
   if (speech.status !== "closed") return json({ ...out, report: null, report_wait: "after" });
   if (m.words < 15) return json({ ...out, report: null, report_wait: "short" });
 
-  const lang = ["en", "es", "fr"].includes(body.lang) ? body.lang : "en";
+  // the coach writes in the speeches' language (English) unless COACH_LANG = "reader"
+  const lang = env.COACH_LANG === "reader" && ["en", "es", "fr"].includes(body.lang) ? body.lang : "en";
   const room = await aggregate(env, id);
   const extras = {
     self: await selfFigure(env, id), fillers: await fillerFigure(env, id), focus: await focusFigure(env, id), roles: await roleReports(env, id),
