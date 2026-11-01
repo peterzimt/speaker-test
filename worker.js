@@ -7,6 +7,7 @@
  *   ALLOWED_ORIGINS  variable: comma-separated origins, e.g. "https://aristotl.es"
  *   CAMERA_KEY       secret (optional): password for the camera page (the host password also works)
  *   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET  (optional): Google OAuth client, for YouTube uploads
+ *   AI               (optional) Workers AI binding: speech transcription and AI coaching feedback
  *
  * Single file, no dependencies: you can paste it straight into the dashboard editor.
  */
@@ -92,6 +93,8 @@ async function route(request, env) {
   // ---- speaker
   if (a === "speeches" && b && c === "results" && m === "GET") return speechResults(request, env, b, url.searchParams.get("k"));
   if (a === "speeches" && b && c === "self" && m === "POST") return selfRate(request, env, b);
+  if (a === "speeches" && b && c === "analysis" && m === "POST") return speechAnalysis(request, env, b);
+  if (a === "speeches" && b && c === "audio" && m === "POST") { await requireUploader(request, env, b); return audioChunk(request, env, b); }
 
   // ---- passport
   if (a === "passports" && !b && m === "POST") return createPassport(request, env);
@@ -131,7 +134,7 @@ async function getSessionForHost(env, code) {
   const session = await mustGetSession(env, code);
   const { results } = await env.DB.prepare(
     `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.film, sp.youtube_id, sp.filmer, sp.participant_id, sp.topic, sp.impromptu, sp.shape, sp.focus_roles, sp.parent_id, sp.kind, sp.seconds, (SELECT o.speaker FROM speeches o WHERE o.id = sp.parent_id) AS after,
-            COUNT(v.voter) AS votes
+            (SELECT COUNT(*) FROM speech_audio a WHERE a.speech_id = sp.id) AS audio, COUNT(v.voter) AS votes
        FROM speeches sp LEFT JOIN votes v ON v.speech_id = sp.id
       WHERE sp.session_code = ?
       GROUP BY sp.id ORDER BY sp.created_at ASC, sp.rowid ASC`
@@ -143,6 +146,7 @@ async function getSessionForHost(env, code) {
     session: { ...session, timer_end: undefined }, speeches: results, timer: timerState(session),
     participants: plan.participants.map(p => ({ id: p.id, name: p.name, speech_id: p.speech_id })),
     camera: { mode: session.camera_mode || "rotation", person: session.camera_person || null },
+    ai: Boolean(env.AI),
   });
 }
 
@@ -621,7 +625,7 @@ async function fillerFigure(env, speechId) {
 
 async function speechResults(request, env, id, token) {
   const speech = await env.DB.prepare(
-    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.youtube_id, sp.topic, sp.kind, sp.parent_id, s.title, s.technique, s.code
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.created_at, sp.youtube_id, sp.topic, sp.kind, sp.parent_id, sp.seconds, s.timer_duration, s.title, s.technique, s.code
        FROM speeches sp JOIN sessions s ON s.code = sp.session_code WHERE sp.id = ?`
   ).bind(id).first();
   if (!speech) throw new HttpError(404, "Speech not found");
@@ -634,7 +638,7 @@ async function speechResults(request, env, id, token) {
   return json({
     speech: { id: speech.id, speaker: speech.speaker, status: speech.status, date: speech.created_at,
               session: speech.title, technique: speech.technique, youtube_id: speech.youtube_id || null,
-              topic: speech.topic || null, kind: speech.kind || null },
+              topic: speech.topic || null, kind: speech.kind || null, target: speech.seconds || speech.timer_duration || null },
     ...results,
     self: await selfFigure(env, id),
     fillers: await fillerFigure(env, id),
@@ -813,6 +817,308 @@ async function selfRate(request, env, id) {
 async function selfFigure(env, id) {
   const r = await env.DB.prepare("SELECT ethos, pathos, logos, structure, delivery FROM self_ratings WHERE speech_id = ?").bind(id).first();
   return r || null;
+}
+
+/* ---------------------------------------------------------- speech analysis */
+/* A phone that films (or the host laptop) sends the speech audio in ~20 s WAV pieces. Workers AI (Whisper)
+   writes it down word by word; this file measures fillers, pace, pauses, hedges… from the words, and a
+   Workers AI language model writes the coaching feedback, mixing those numbers with what the room said.
+   Needs a Workers AI binding called "AI" (Worker → Settings → Bindings). */
+const WHISPER = "@cf/openai/whisper-large-v3-turbo";
+const COACH_LLM = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const AUDIO_SOURCES = ["phone", "room"];               // preference order: the filming phone is closer to the speaker
+const FILLER_PROMPT = {
+  "": "Um, uh, hmm... euh, eh.",
+  en: "Um, so, uh, I was like, you know... hmm, okay.",
+  fr: "Euh, alors, du coup, en fait... bah, voilà, hein.",
+  es: "Eh, este, o sea, bueno... pues, mmm, vale.",
+};
+
+async function audioChunk(request, env, id) {
+  if (!env.AI) throw new HttpError(503, "AI analysis isn't switched on yet");
+  const raw = await request.text();
+  if (raw.length > 3_000_000) throw new HttpError(413, "Audio piece too large");
+  let body; try { body = JSON.parse(raw); } catch { throw new HttpError(400, "Invalid JSON"); }
+  const source = AUDIO_SOURCES.includes(body.source) ? body.source : "phone";
+  const idx = Number(body.idx), total = Number(body.total), offset = Math.max(0, Math.round(Number(body.offset_ms) || 0));
+  if (!Number.isInteger(idx) || !Number.isInteger(total) || idx < 0 || total < 1 || total > 90 || idx >= total) throw new HttpError(400, "Bad audio piece number");
+  const sp = await env.DB.prepare("SELECT id FROM speeches WHERE id = ?").bind(id).first();
+  if (!sp) throw new HttpError(404, "Speech not found");
+  const voice = body.voice && typeof body.voice === "object" ? JSON.stringify(body.voice).slice(0, 2000) : null;
+  let words = [], lang = null, text = "";
+  if (typeof body.audio === "string" && body.audio.length > 100) {
+    // later pieces: same language as the first one, with fillers written in that language
+    const first = idx > 0 ? await env.DB.prepare("SELECT lang FROM speech_audio WHERE speech_id = ? AND source = ? AND lang IS NOT NULL ORDER BY idx LIMIT 1").bind(id, source).first() : null;
+    const known = first?.lang && FILLER_PROMPT[first.lang] ? first.lang : "";
+    const opts = { audio: body.audio, initial_prompt: FILLER_PROMPT[known] };
+    if (known) opts.language = known;
+    let res;
+    try { res = await env.AI.run(WHISPER, opts); }
+    catch (e) { console.error("whisper", e); throw new HttpError(502, "Transcription failed, retrying may help"); }
+    words = whisperWords(res, offset);
+    text = words.map(w => w[0]).join(" ");
+    lang = (res.transcription_info?.language || known || "").slice(0, 5) || null;
+  }
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO speech_audio (speech_id, source, idx, total, offset_ms, text, words, lang, voice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, source, idx, total, offset, text, JSON.stringify(words), lang, voice).run();
+  return json({ ok: true, words: words.length });
+}
+
+/* Whisper output → [[word, start_ms, end_ms], …]. Uses word timings when given, otherwise spreads each segment. */
+function whisperWords(res, offset) {
+  const out = [], ms = s => Math.round((Number(s) || 0) * 1000) + offset;
+  for (const seg of res?.segments || []) {
+    if (seg.no_speech_prob > 0.85 && (seg.avg_logprob ?? 0) < -0.8) continue;        // silence the model "heard" words in
+    if (Array.isArray(seg.words) && seg.words.length) {
+      for (const w of seg.words) { const t = String(w.word ?? w.text ?? "").trim(); if (t) out.push([t, ms(w.start), ms(w.end)]); }
+    } else {
+      const toks = String(seg.text || "").trim().split(/\s+/).filter(Boolean), s = ms(seg.start), e = ms(seg.end);
+      toks.forEach((t, i) => out.push([t, Math.round(s + (e - s) * i / toks.length), Math.round(s + (e - s) * (i + 1) / toks.length)]));
+    }
+  }
+  if (!out.length && res?.text) String(res.text).trim().split(/\s+/).filter(Boolean).forEach((t, i) => out.push([t, offset + i * 350, offset + i * 350 + 300]));
+  return out;
+}
+
+/* ---- measuring the transcript */
+const HARD_FILLERS = new Set("um umm ummm uh uhh uhm er erm ah ahh hmm hm mm mmm mmh euh euhh heu hum eh ehh ehm em emm eeh".split(" "));
+const P_APOLOGY = ["i'm sorry", "i am sorry", "sorry", "apologies", "excuse me", "pardon", "désolé", "désolée", "excusez-moi", "excuse-moi", "perdón", "perdona", "perdonad", "lo siento", "disculpa", "disculpad", "disculpen"];
+const P_HEDGE = ["i think", "i guess", "i believe", "i feel like", "maybe", "perhaps", "probably", "kind of", "sort of", "a little bit", "i'm not sure", "not sure",
+  "je pense", "je crois", "peut-être", "un peu", "je sais pas", "je ne sais pas", "j'ai l'impression", "en quelque sorte",
+  "creo que", "pienso que", "quizás", "quizá", "tal vez", "a lo mejor", "un poco", "no sé"];
+const P_CRUTCH = ["you know", "i mean", "basically", "actually", "literally", "du coup", "en fait", "genre", "tu vois", "vous voyez", "o sea", "en plan", "digamos"];
+const SOFT_CRUTCH = new Set("like so okay ok right alors bon ben bah voilà quoi bueno pues vale este tipo entonces".split(" "));  // only when followed by a comma
+const phraseList = (list, tag) => list.map(p => [p.split(" "), tag]).sort((a, b) => b[0].length - a[0].length);
+const PHRASES = [...phraseList(P_APOLOGY, "a"), ...phraseList(P_HEDGE, "h"), ...phraseList(P_CRUTCH, "c")];
+const normWord = w => String(w).toLowerCase().replace(/[’`]/g, "'").replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, "");
+
+function measureSpeech(words, voice, recordedMs) {
+  const toks = words.map(([w, s, e]) => ({ w, s, e, n: normWord(w), tag: "" }));
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (!t.n) continue;
+    if (HARD_FILLERS.has(t.n.replace(/(.)\1{2,}/g, "$1$1"))) { t.tag = "f"; continue; }
+    let hit = null;
+    for (const [p, tag] of PHRASES) {
+      if (p.every((x, j) => toks[i + j]?.n === x)) { hit = [p.length, tag]; break; }
+    }
+    if (hit) { for (let j = 0; j < hit[0]; j++) if (!toks[i + j].tag) toks[i + j].tag = hit[1]; toks[i].start = hit[1]; i += hit[0] - 1; continue; }
+    if (SOFT_CRUTCH.has(t.n) && /[,…]|\.\.\.$/.test(t.w)) { t.tag = "c"; t.start = "c"; continue; }
+    if (/\d/.test(t.n)) t.tag = "n";
+  }
+  const spoken = toks.filter(t => t.n && t.tag !== "f");
+  const first = toks[0], last = toks[toks.length - 1];
+  const span = toks.length ? Math.max(1000, last.e - first.s) : 0, mins = span / 60000;
+  const tally = tag => {
+    const m = new Map();
+    toks.forEach((t, i) => {
+      if ((tag === "f" ? t.tag === "f" : t.start === tag)) {
+        let ph = t.n; if (tag !== "f") { let j = i + 1; while (toks[j] && toks[j].tag === tag && !toks[j].start) ph += " " + toks[j++].n; }
+        m.set(ph, (m.get(ph) || 0) + 1);
+      }
+    });
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    return { count: top.length ? [...m.values()].reduce((a, b) => a + b, 0) : 0, top };
+  };
+  // pauses between words (the speech's first and last words bound it: the get-ready silence isn't counted)
+  const gaps = [];
+  for (let i = 1; i < toks.length; i++) { const g = toks[i].s - toks[i - 1].e; if (g >= 1500) gaps.push({ at: toks[i - 1].e - first.s, ms: g }); }
+  // pace per 30 s
+  const pace = [];
+  if (toks.length) for (let t0 = first.s; t0 < last.e; t0 += 30000) {
+    const n = spoken.filter(t => t.s >= t0 && t.s < t0 + 30000).length, len = Math.min(30000, last.e - t0);
+    if (len >= 8000) pace.push(Math.round(n / (len / 60000)));
+  }
+  // sentences
+  const text = toks.map(t => t.w).join(" ");
+  const sents = text.split(/(?<=[.!?…])\s+/).map(s => s.split(/\s+/).filter(w => normWord(w) && !HARD_FILLERS.has(normWord(w))).length).filter(n => n > 0);
+  // repeated three-word phrases
+  const tri = new Map(), plain = spoken.map(t => t.n);
+  for (let i = 0; i + 2 < plain.length; i++) { const k = plain.slice(i, i + 3).join(" "); tri.set(k, (tri.get(k) || 0) + 1); }
+  const repeats = [...tri.entries()].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const f = tally("f");
+  return {
+    words: spoken.length, speaking_ms: span, recorded_ms: recordedMs || null,
+    wpm: mins ? Math.round(spoken.length / mins) : 0, pace,
+    fillers: { ...f, per_min: mins ? Math.round(f.count / mins * 10) / 10 : 0 },
+    crutches: tally("c"), hedges: tally("h"), apologies: tally("a"),
+    numbers: toks.filter(t => t.tag === "n").length,
+    pauses: { count: gaps.length, long: gaps.filter(g => g.ms >= 3000).length, blanks: gaps.filter(g => g.ms >= 5000).length,
+              longest_ms: gaps.reduce((a, g) => Math.max(a, g.ms), 0), list: gaps.slice(0, 40) },
+    sentences: { count: sents.length, avg: sents.length ? Math.round(sents.reduce((a, b) => a + b, 0) / sents.length) : 0, longest: sents.reduce((a, b) => Math.max(a, b), 0) },
+    repeats, voice: voice || null,
+    tokens: toks.map(t => [t.w, t.s - (first?.s || 0), t.e - (first?.s || 0), t.tag]),
+  };
+}
+
+async function loadTranscript(env, id) {
+  const { results } = await env.DB.prepare("SELECT source, idx, total, words, lang, voice FROM speech_audio WHERE speech_id = ? ORDER BY idx").bind(id).all();
+  if (!results.length) return { state: "none" };
+  const by = {};
+  for (const r of results) (by[r.source] = by[r.source] || []).push(r);
+  const done = AUDIO_SOURCES.find(s => by[s] && by[s].length >= by[s][0].total);
+  if (!done) { const s = AUDIO_SOURCES.find(x => by[x]); return { state: "processing", got: by[s].length, total: by[s][0].total }; }
+  const rows = by[done];
+  const words = rows.flatMap(r => JSON.parse(r.words || "[]"));
+  const vrow = rows.find(r => r.voice), voice = vrow ? JSON.parse(vrow.voice) : null;
+  const langs = rows.map(r => r.lang).filter(Boolean);
+  return { state: "ready", source: done, words, voice, lang: langs[0] || null };
+}
+
+/* POST /speeches/:id/analysis  { k, lang, report: bool, context: { theme, roles } } */
+async function speechAnalysis(request, env, id) {
+  const body = await readJsonBig(request, 20000);
+  const speech = await env.DB.prepare(
+    `SELECT sp.id, sp.speaker, sp.status, sp.result_token, sp.topic, sp.impromptu, sp.kind, sp.seconds, sp.parent_id, s.technique, s.timer_duration
+       FROM speeches sp JOIN sessions s ON s.code = sp.session_code WHERE sp.id = ?`).bind(id).first();
+  if (!speech) throw new HttpError(404, "Speech not found");
+  if (!hostOk(request, env) && body.k !== speech.result_token) throw new HttpError(403, "This link is not valid");
+  const tr = await loadTranscript(env, id);
+  if (tr.state !== "ready") return json({ ai: Boolean(env.AI), ...tr });
+  const voice = tr.voice || null;
+  const m = measureSpeech(tr.words, voice, voice?.recorded_ms);
+  const out = { ai: true, state: "ready", source: tr.source, lang: tr.lang, metrics: m };
+  if (!body.report) return json(out);
+  if (speech.status !== "closed") return json({ ...out, report: null, report_wait: "after" });
+  if (m.words < 15) return json({ ...out, report: null, report_wait: "short" });
+
+  const lang = ["en", "es", "fr"].includes(body.lang) ? body.lang : "en";
+  const room = await aggregate(env, id);
+  const extras = {
+    self: await selfFigure(env, id), fillers: await fillerFigure(env, id), focus: await focusFigure(env, id), roles: await roleReports(env, id),
+    comments: (await env.DB.prepare("SELECT worked, next_rep FROM votes WHERE speech_id = ? AND (worked IS NOT NULL OR next_rep IS NOT NULL) ORDER BY created_at").bind(id).all()).results,
+  };
+  const key = [room.votes, extras.roles.length, extras.comments.length, extras.self ? 1 : 0, extras.fillers?.count ?? "", m.words].join(":");
+  const cached = await env.DB.prepare("SELECT key, report, created_at FROM speech_reports WHERE speech_id = ? AND lang = ?").bind(id, lang).first();
+  const fresh = cached && (cached.key === key || Date.now() - Date.parse(cached.created_at + "Z") < 90_000);
+  if (fresh && !body.again) return json({ ...out, report: JSON.parse(cached.report), report_at: cached.created_at });
+  try {
+    const report = await coachReport(env, { speech, m, room, extras, lang, context: body.context || {}, tokens: m.tokens });
+    await env.DB.prepare("INSERT OR REPLACE INTO speech_reports (speech_id, lang, key, report, created_at) VALUES (?, ?, ?, ?, datetime('now'))").bind(id, lang, key, JSON.stringify(report)).run();
+    return json({ ...out, report });
+  } catch (e) {
+    console.error("coach", e && e.message);
+    if (cached) return json({ ...out, report: JSON.parse(cached.report), report_at: cached.created_at });
+    return json({ ...out, report: null, report_error: "The AI coach couldn't write the feedback this time. Reload the page to try again." });
+  }
+}
+
+async function readJsonBig(request, max) {
+  const text = await request.text();
+  if (text.length > max) throw new HttpError(413, "Request too large");
+  try { return text ? JSON.parse(text) : {}; } catch { throw new HttpError(400, "Invalid JSON"); }
+}
+
+const LANG_NAME = { en: "English", es: "Spanish (Spain)", fr: "French" };
+const COACH_ROLES = {
+  um: { en: "Filler words", profiles: { en: ["The Filler-Machine"], fr: ["la Machine à tics"], es: ["la Máquina de muletillas"] } },
+  structure: { en: "Structure", profiles: { en: ["The Rambler", "The Windbag", "The Burier", "The Forgettable"], fr: ["le Bavard", "le Moulin à paroles", "celui qui enterre son message", "l'Oubliable"], es: ["el Divagador", "el Charlatán", "el que entierra su mensaje", "el Olvidable"] } },
+  body: { en: "Body & eyes", profiles: { en: ["The Statue", "The Pacer", "The Shaker", "The Escaper", "The Reader"], fr: ["la Statue", "celui qui fait les cent pas", "celui qui tremble", "celui qui fuit du regard", "le Lecteur"], es: ["la Estatua", "el que no para de caminar", "el que tiembla", "el que esquiva la mirada", "el Lector"] } },
+  voice: { en: "Voice", profiles: { en: ["The Monotone", "The Mumbler", "The Speed-Talker", "The Robot"], fr: ["le Monotone", "celui qui marmonne", "celui qui parle trop vite", "le Robot"], es: ["el Monótono", "el que masculla", "el que habla demasiado rápido", "el Robot"] } },
+  clarity: { en: "Clarity", profiles: { en: ["The Jargon-Monger", "The Data-Dumper"], fr: ["le Jargonneur", "celui qui noie sous les chiffres"], es: ["el de la jerga", "el que ahoga en datos"] } },
+  confidence: { en: "Confidence", profiles: { en: ["The Apologiser", "The Impostor", "The People-Pleaser", "The Defensive"], fr: ["celui qui s'excuse", "l'Imposteur", "celui qui veut plaire", "le Défensif"], es: ["el que pide perdón", "el Impostor", "el que quiere agradar", "el Defensivo"] } },
+  energy: { en: "Connection", profiles: { en: ["The Joker", "The Showman", "The Freezer", "The Overcompensator"], fr: ["le Blagueur", "le Showman", "celui qui se fige", "celui qui en fait trop"], es: ["el Bromista", "el Showman", "el que se bloquea", "el que se pasa"] } },
+};
+const ROLE_KEYS = Object.keys(COACH_ROLES);
+
+async function coachReport(env, { speech, m, room, extras, lang, context, tokens }) {
+  const L = LANG_NAME[lang];
+  const sec = ms => `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, "0")}`;
+  const top = t => t.top.map(([w, n]) => `“${w}” ×${n}`).join(", ") || "none";
+  const ctx = context && typeof context === "object" ? context : {};
+  const theme = ctx.theme && typeof ctx.theme === "object" ? ctx.theme : null;
+  const roleDefs = ctx.roles && typeof ctx.roles === "object" ? ctx.roles : {};
+  const target = speech.seconds || speech.timer_duration;
+  // transcript with pause marks
+  let tx = "", prevEnd = null;
+  for (const [w, s, e] of tokens) { if (prevEnd != null && s - prevEnd >= 1500) tx += ` [pause ${((s - prevEnd) / 1000).toFixed(1)}s]`; tx += " " + w; prevEnd = e; }
+  tx = tx.trim(); if (tx.length > 14000) tx = tx.slice(0, 14000) + " […]";
+  const v = m.voice;
+  const lines = [
+    `SPEAKER: ${speech.speaker}`,
+    `TOPIC: ${speech.topic ? `"${speech.topic}"` : "not given"}${speech.impromptu ? " (impromptu: surprise topic, 30 s to think)" : ""}${speech.kind ? ` (follow-up attempt on someone else's topic: ${speech.kind})` : ""}`,
+    theme ? `THEME OF THE NIGHT: ${String(theme.title || "").slice(0, 80)}. Audience question: ${String(theme.focus || "").slice(0, 160)}. Suggested plan: ${(Array.isArray(theme.plan) ? theme.plan : []).slice(0, 6).map((p, i) => `${i + 1}. ${String(p[0]).slice(0, 60)} (${String(p[1] || "").slice(0, 120)})`).join(" ")}` : "THEME OF THE NIGHT: none",
+    `TIME: target ${target ? sec(target * 1000) : "not set"}, actual speaking time ${sec(m.speaking_ms)}`,
+    "",
+    "MEASURED AUTOMATICALLY FROM THE TRANSCRIPT (speech-to-text may miss some 'um's and mishear words):",
+    `- Pace: ${m.wpm} words/min (comfortable range 120–160). Per 30 s: ${m.pace.join(", ") || "n/a"}`,
+    `- Filler sounds: ${m.fillers.count} (${m.fillers.per_min}/min): ${top(m.fillers)}${extras.fillers ? `. The human um-counter in the room counted ${extras.fillers.count}` : ""}`,
+    `- Crutch words: ${m.crutches.count}: ${top(m.crutches)}`,
+    `- Hedges: ${m.hedges.count}: ${top(m.hedges)}`,
+    `- Apologies: ${m.apologies.count}: ${top(m.apologies)}`,
+    `- Pauses of 1.5 s or more: ${m.pauses.count} (of 3 s+: ${m.pauses.long}, blanks of 5 s+: ${m.pauses.blanks}, longest ${(m.pauses.longest_ms / 1000).toFixed(1)} s)`,
+    `- Sentences: ${m.sentences.count}, average ${m.sentences.avg} words, longest ${m.sentences.longest} words`,
+    `- Numbers said: ${m.numbers}. Repeated phrases: ${m.repeats.map(([p, n]) => `“${p}” ×${n}`).join(", ") || "none"}`,
+    v ? `- Voice (indicative, phone microphone): pitch variation ${v.pitch_st ?? "?"} semitones (under 2 sounds monotone, over 4 very expressive); loudness variation ${v.loud_db ?? "?"} dB; volume at the end vs the start ${v.fade_db ?? "?"} dB` : "- Voice: not measured",
+    "",
+    `THE ROOM (${room.votes} people voted, scores out of 5): ${room.votes ? CRITERIA.map(k => `${k} ${room.scores[k]}`).join(", ") : "no votes"}`,
+    extras.focus ? `- Theme score: ${extras.focus.avg}/5` : "",
+    extras.self ? `- Speaker's own rating: ${CRITERIA.map(k => `${k} ${extras.self[k]}`).join(", ")}` : "",
+    ...extras.roles.map(r => {
+      const d = roleDefs[r.role] || {}, items = Array.isArray(d.items) ? d.items : [];
+      const marks = (r.items || []).map((x, i) => x == null || !items[i] ? null : `${String(items[i]).slice(0, 80)}: ${["no", "partly", "yes"][x] || "?"}`).filter(Boolean);
+      return `- Role report, ${COACH_ROLES[r.role]?.en || r.role} watcher: ${marks.join("; ") || "no ticks"}${r.count != null && (r.role === "um" || d.count) ? `; counted ${r.count} ${r.role === "um" ? "fillers" : String(d.count || "").slice(0, 40)}` : ""}${r.note ? `; note: "${String(r.note).slice(0, 200)}"` : ""}`;
+    }),
+    ...extras.comments.flatMap(c => [c.worked ? `- Comment, what worked: "${c.worked}"` : "", c.next_rep ? `- Comment, try next time: "${c.next_rep}"` : ""]).filter(Boolean),
+    "",
+    "TRANSCRIPT ([pause Xs] = silence):",
+    tx,
+  ].filter(x => x !== "").join("\n");
+
+  const profiles = ROLE_KEYS.map(k => `${k} (${COACH_ROLES[k].en}): ${COACH_ROLES[k].profiles[lang].join(" / ")}`).join("\n");
+  const system = `You are the coach of Aristotl.es, a friendly public speaking club in Madrid. You review one short club speech using its automatic transcript, measurements and the feedback people in the room gave.
+Rules:
+- Write every text value in ${L}, in a warm, direct, concrete tone. Address the speaker as "you" (${lang === "fr" ? "tutoiement" : lang === "es" ? "tuteo" : "informal"}).
+- Be specific: quote the speaker's own words (short quotes) and use the numbers. No generic advice.
+- The transcript is automatic: don't criticise spelling or punctuation, and remember some fillers may be missing from it.
+- You cannot see the speaker. For "body" use only what the room reported; if nothing was reported, verdict "unknown" and an empty note.
+- For each habit area, "profile" is the name of the matching speaker profile when the speaker clearly shows that habit, chosen from this list, otherwise "":
+${profiles}
+- improvements: the 3 most useful changes for next time, most important first. "example" shows how: rewrite one of their actual sentences better, or give a one-line drill.
+- room_vs_ai: say where the room's feedback and your analysis agree or differ (one or two sentences). If nobody gave feedback, say so briefly.
+Return only JSON matching the schema.`;
+
+  const schema = {
+    type: "object",
+    properties: {
+      summary: { type: "string" },
+      main_message: { type: "string" },
+      message_clear: { type: "boolean" },
+      structure: { type: "object", properties: { opening: { type: "string" }, body: { type: "string" }, closing: { type: "string" }, verdict: { type: "string", enum: ["clear", "partial", "unclear"] } }, required: ["opening", "body", "closing", "verdict"] },
+      theme: { type: "string" },
+      habits: { type: "array", items: { type: "object", properties: { area: { type: "string", enum: ROLE_KEYS }, verdict: { type: "string", enum: ["good", "ok", "work", "unknown"] }, note: { type: "string" }, profile: { type: "string" } }, required: ["area", "verdict", "note", "profile"] } },
+      strengths: { type: "array", items: { type: "string" } },
+      improvements: { type: "array", items: { type: "object", properties: { area: { type: "string", enum: ROLE_KEYS }, tip: { type: "string" }, example: { type: "string" } }, required: ["area", "tip", "example"] } },
+      room_vs_ai: { type: "string" },
+      drill: { type: "string" },
+    },
+    required: ["summary", "main_message", "message_clear", "structure", "theme", "habits", "strengths", "improvements", "room_vs_ai", "drill"],
+  };
+  const messages = [{ role: "system", content: system }, { role: "user", content: lines + `\n\nWrite the review in ${L}. One entry in "habits" for each of: ${ROLE_KEYS.join(", ")}. Two strengths, three improvements, one drill for next week. "theme": how well they practised tonight's theme ("" if there is no theme).` }];
+  let res;
+  try { res = await env.AI.run(COACH_LLM, { messages, response_format: { type: "json_schema", json_schema: schema }, max_tokens: 2200, temperature: 0.4 }); }
+  catch (e) { console.error("coach json_schema", e && e.message); res = await env.AI.run(COACH_LLM, { messages, max_tokens: 2200, temperature: 0.4 }); }
+  let r = res?.response;
+  if (typeof r === "string") { const a = r.indexOf("{"), b = r.lastIndexOf("}"); r = JSON.parse(r.slice(a, b + 1)); }
+  if (!r || typeof r !== "object") throw new Error("no report");
+  return tidyReport(r);
+}
+
+function tidyReport(r) {
+  const s = (x, n = 600) => (typeof x === "string" ? x.trim().slice(0, n) : "");
+  const habits = (Array.isArray(r.habits) ? r.habits : []).filter(h => ROLE_KEYS.includes(h?.area))
+    .map(h => ({ area: h.area, verdict: ["good", "ok", "work", "unknown"].includes(h.verdict) ? h.verdict : "ok", note: s(h.note, 400), profile: s(h.profile, 60) }));
+  const seen = new Set();
+  return {
+    summary: s(r.summary), main_message: s(r.main_message, 300), message_clear: r.message_clear !== false,
+    structure: { opening: s(r.structure?.opening, 400), body: s(r.structure?.body, 400), closing: s(r.structure?.closing, 400), verdict: ["clear", "partial", "unclear"].includes(r.structure?.verdict) ? r.structure.verdict : "partial" },
+    theme: s(r.theme, 500),
+    habits: ROLE_KEYS.map(k => habits.find(h => h.area === k && !seen.has(k) && seen.add(k))).filter(Boolean),
+    strengths: (Array.isArray(r.strengths) ? r.strengths : []).map(x => s(x, 300)).filter(Boolean).slice(0, 3),
+    improvements: (Array.isArray(r.improvements) ? r.improvements : []).map(x => ({ area: ROLE_KEYS.includes(x?.area) ? x.area : "", tip: s(x?.tip, 300), example: s(x?.example, 400) })).filter(x => x.tip).slice(0, 4),
+    room_vs_ai: s(r.room_vs_ai, 500), drill: s(r.drill, 400),
+  };
 }
 
 /* ---------------------------------------------------------------- YouTube */

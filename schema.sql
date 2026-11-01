@@ -81,3 +81,5 @@ ALTER TABLE speeches ADD COLUMN kind TEXT;
 ALTER TABLE speeches ADD COLUMN seconds INTEGER;
 ALTER TABLE votes ADD COLUMN focus INTEGER;
 CREATE TABLE IF NOT EXISTS role_reports (speech_id TEXT NOT NULL REFERENCES speeches(id) ON DELETE CASCADE, voter TEXT NOT NULL, role TEXT NOT NULL, data TEXT NOT NULL, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (speech_id, voter, role));
+CREATE TABLE IF NOT EXISTS speech_audio (speech_id TEXT NOT NULL REFERENCES speeches(id) ON DELETE CASCADE, source TEXT NOT NULL, idx INTEGER NOT NULL, total INTEGER NOT NULL, offset_ms INTEGER NOT NULL, text TEXT, words TEXT, lang TEXT, voice TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (speech_id, source, idx));
+CREATE TABLE IF NOT EXISTS speech_reports (speech_id TEXT NOT NULL REFERENCES speeches(id) ON DELETE CASCADE, lang TEXT NOT NULL, key TEXT, report TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (speech_id, lang));

@@ -1,0 +1,15 @@
+# Optional: only if you prefer deploying from the command line instead of the dashboard.
+name = "aristotles-api"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://aristotl.es,https://www.aristotl.es"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aristotles"
+database_id = "PASTE-YOUR-D1-DATABASE-ID"
+
+[ai]
+binding = "AI"
